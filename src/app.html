@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<link rel="icon" href="/favicon.png" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<link rel="stylesheet" href="/basscss.css" />
+		<script>
+			(() => {
+				const savedScheme = window.localStorage && window.localStorage.getItem('colorScheme');
+				const scheme =
+					savedScheme ||
+					(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+						? 'dark'
+						: 'light');
+				const link = document.createElement('link');
+				link.setAttribute('rel', 'stylesheet');
+				link.setAttribute('id', 'color-scheme');
+				switch (scheme) {
+					case 'dark':
+						link.setAttribute('href', '/smui-dark.css');
+						break;
+					default:
+						link.setAttribute('href', '/smui.css');
+						break;
+				}
+				document.head.appendChild(link);
+			})();
+		</script>
+		<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
+		%svelte.head%
+	</head>
+	<body class="m0">
+		<div id="svelte">%svelte.body%</div>
+	</body>
+</html>

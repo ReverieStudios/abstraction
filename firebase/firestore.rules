@@ -1,0 +1,80 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() { return request.auth != null; }
+    function isUser(userId) { return isSignedIn() && request.auth.uid == userId; }
+    function isGlobalWriter() {
+      let roles = get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles;
+      return roles.system >= 3;
+    }
+  // function isGlobalOwner()  {
+    //   let roles = get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles;
+    //   return roles.system >= 4;
+    // }
+    function isWriter() { return isSignedIn() && isGlobalWriter(); }
+  // function isOwner() { return isSignedIn() && isGlobalOwner(); }
+
+    match /games/{game} {
+      // overwrite isWriter / isOwner with game level checks
+      function isGameWriter(game) {
+        let roles = get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles;
+        return roles.system >= 3 || roles.games[game] >= 3;
+      }
+      function isGameOwner(game) {
+        let roles = get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles;
+        return roles.system == 4 || roles.games[game] == 4;
+      }
+      function isWriter(game) { return isSignedIn() && isGameWriter(game); }
+      function isOwner(game) { return isSignedIn() && isGameOwner(game); }
+
+      allow read: if isSignedIn();
+      allow write: if isOwner(game);
+
+      // assetTypes, decisionTree, flags
+      match /data/{dataType} {
+        allow read: if isSignedIn();
+        allow write: if isWriter(game);
+      }
+
+      // name
+      // image?
+      // assetTypes[]
+
+      match /flags/{flag} {
+        allow read: if isWriter(game);
+        allow write: if isOwner(game);
+      }
+      match /assets/{asset} {
+        allow read: if isSignedIn();
+        allow write: if isWriter(game);
+      }
+      match /favorites/{user} {
+        allow read: if isUser(user) || isWriter(game);
+        allow write: if false;
+      }
+      match /locks/{asset} {
+        allow read: if isSignedIn();
+        allow write: if isWriter(game);
+      }
+      match /characters/{character} {
+        allow read: if isUser(character) || isWriter(game)
+        allow write: if isWriter(game);
+      }
+    }
+
+    match /tokens/{token} {
+      allow read: if isWriter()
+      allow write: if isWriter();
+    }
+
+    match /users/{user} {
+      allow read: if isUser(user) || isWriter()
+      allow write: if isUser(user) || isWriter();
+    }
+
+    match /forms/{form} {
+      allow read: if isSignedIn()
+      allow write: if isWriter();
+    }
+  }
+}

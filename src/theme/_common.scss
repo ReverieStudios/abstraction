@@ -1,0 +1,58 @@
+html {
+	--primary: #{theme.$primary};
+	--primary-light: #{color.scale(theme.$primary, $whiteness: +10%)};
+	--primary-dark: #{color.scale(theme.$primary, $lightness: -20%)};
+	--secondary: #{theme.$secondary};
+	--secondary-light: #{color.scale(theme.$secondary, $whiteness: +20%)};
+	--secondary-dark: #{color.scale(theme.$secondary, $whiteness: -10%)};
+	--accent: #{$accent};
+	--accent-light: #{color.scale($accent, $whiteness: +10%)};
+	--accent-dark: #{color.scale($accent, $whiteness: -10%)};
+	--on-primary: #{theme.$on-primary};
+	--on-secondary: #{theme.$on-secondary};
+	--success: #{$success};
+	--warning: #{$warning};
+	--on-warning: #000;
+	--error: #{theme.$error};
+	--surface: #{theme.$surface};
+	--on-surface: #{theme.$on-surface};
+}
+a,
+a:visited {
+	color: theme.$secondary;
+}
+
+@each $style in ('primary', 'secondary', 'success', 'warning', 'error', 'surface', 'accent') {
+	.bg-#{$style} {
+		background-color: var(--#{$style});
+		--background-color: var(--#{$style});
+		--text-color: var(--on-#{$style});
+	}
+	.bg-#{$style}-light {
+		background-color: var(--#{$style}-light);
+		--background-color: var(--#{$style}-light);
+		--text-color: var(--on-#{$style});
+	}
+	.bg-#{$style}-dark {
+		background-color: var(--#{$style}-dark);
+		--background-color: var(--#{$style}-dark);
+		--text-color: var(--on-#{$style});
+	}
+	.hover-bg-#{$style}-dark:hover {
+		@extend .bg-#{$style}-dark;
+	}
+	.hover-bg-#{$style}-light:hover {
+		@extend .bg-#{$style}-light;
+	}
+	.text-#{$style} {
+		color: var(--#{$style});
+	}
+	.text-on-#{$style},
+	a.text-on-#{$style} {
+		color: var(--on-#{$style});
+	}
+	.text-#{$style},
+	a.text-#{$style} {
+		color: var(--#{$style});
+	}
+}

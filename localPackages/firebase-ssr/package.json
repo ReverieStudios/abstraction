@@ -1,0 +1,14 @@
+{
+	"name": "firebase-ssr",
+	"description": "Subpackage to work around dynamic imports and SSR",
+	"version": "0.0.3",
+	"exports": {
+		"node": "./server/index.mjs",
+		"browser": "./browser/index.mjs"
+	},
+	"typings": "types.d.ts",
+	"peerDependencies": {
+		"firebase": "9.0.1",
+		"firebase-admin": "^9.10.0"
+	}
+}

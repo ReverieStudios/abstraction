@@ -1,0 +1,13 @@
+.DS_Store
+node_modules
+/.svelte-kit
+/package
+*.log
+/build
+/src/lib/firebaseConfig.js
+/dev-data
+/firebase-export-*
+/notes*
+*.code-workspace
+.env*
+.vercel

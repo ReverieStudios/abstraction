@@ -7,7 +7,14 @@ const dev = mode === 'development';
 
 const config = {
 	kit: {
-		adapter: adapter()
+		adapter: adapter(),
+		vite: {
+			server: {
+				fs: {
+					allow: ['localPackages/firebase-ssr/browser']
+				}
+			}
+		}
 	},
 	preprocess: [
 		preprocess({

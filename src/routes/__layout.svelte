@@ -2,6 +2,7 @@
 	import '../app.postcss';
 
 	export async function load({ url, session }) {
+		console.log("load url", url, "sesion", session);
 		if (url.pathname === '/') {
 			if (session?.user) {
 				return { redirect: '/home', status: 302 };
@@ -64,6 +65,7 @@
 
 	let hasLoaded = false;
 	onMount(() => {
+		console.log("MOUNTED!");
 		hasLoaded = true;
 	});
 </script>
@@ -78,7 +80,7 @@
 				{/if}
 			{/if}
 			<PageTransition>
-				{#if hasLoaded}
+				{#if true}
 					<slot />
 				{/if}
 			</PageTransition>

@@ -7,12 +7,15 @@ import { auth } from '$lib/firebase';
 
 const decodeUserToken = (userToken: string): User => {
 	if (!userToken || userToken === 'null') {
+		console.log("User token was null");
 		return null;
 	}
 	try {
 		const privateKey = import.meta.env.VITE_JWT_KEY as string;
+		console.log("private key is", privateKey, "userToken is", userToken);
 		return jwt.verify(userToken, privateKey) as User;
 	} catch (ex) {
+		console.log("Exception while decoding user token", ex);
 		return null;
 	}
 };

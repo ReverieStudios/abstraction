@@ -5,6 +5,7 @@ import cookie from 'cookie';
 import jwt from 'jsonwebtoken';
 
 const loadUserData = async (token: string): Promise<{ userToken: string; userData: Object }> => {
+	console.log("loadUserData token =", token);
 	const decoded = await auth.decodeToken(token);
 	if (decoded && decoded.uid) {
 		const { uid, email, name = email } = decoded;
@@ -31,7 +32,8 @@ const loadUserData = async (token: string): Promise<{ userToken: string; userDat
 
 export const post: RequestHandler = async (event) => {
 	const payload = await event.request.json();
-	const token: string = payload.token || '';
+	console.log("payload = ", payload);
+	const token: string = payload.token || ''; 
 	let { userToken, userData } = await loadUserData(token);
 
 	try {

@@ -1,6 +1,6 @@
 import type { Token } from '$lib/database/types/Token';
 import { isOwner } from '$lib/permissions';
-import type { RequestHandler } from '@sveltejs/kit';
+import { json, type RequestHandler } from '@sveltejs/kit';
 import jwt from 'jsonwebtoken';
 
 interface SimpleToken {
@@ -8,7 +8,7 @@ interface SimpleToken {
 	flags: Token['flags'];
 }
 
-const encodeToken = (token: SimpleToken): string => {
+const encodeToken = (token: SimpleToken): string |null => {
 	if (!token) {
 		return null;
 	}
@@ -16,7 +16,7 @@ const encodeToken = (token: SimpleToken): string => {
 	return jwt.sign(token, privateKey);
 };
 
-export const post: RequestHandler = async (event) => {
+export const POST: RequestHandler = async (event) => {
 	const payload = await event.request.json();
 
 	const token: SimpleToken = payload?.token ?? {};
@@ -25,12 +25,8 @@ export const post: RequestHandler = async (event) => {
 	// TODO allow game owners to generate game-only tokens
 	if (user?.roles && isOwner(user.roles)) {
 		const encoded = encodeToken(token);
-		return {
-			body: { encoded }
-		};
+		return json(encoded);
 	}
 
-	return {
-		body: {}
-	};
+	return json({});
 };

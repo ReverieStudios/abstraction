@@ -1,5 +1,5 @@
 import { isEditor } from '$lib/permissions';
-import type { RequestHandler } from '@sveltejs/kit';
+import { json, type RequestHandler } from '@sveltejs/kit';
 import { getChannels, getMessages } from '$lib/api/discord';
 
 interface Payload {
@@ -7,7 +7,7 @@ interface Payload {
 	gameID: string;
 }
 
-export const post: RequestHandler = async (event) => {
+export const POST: RequestHandler = async (event) => {
 	const payload: Payload = await event.request.json();
 
 	const { gameID, channelID } = payload;
@@ -15,12 +15,8 @@ export const post: RequestHandler = async (event) => {
 	const user = event.locals.user;
 	// only run if a game editor triggered this
 	if (user?.roles && isEditor(user.roles, gameID)) {
-		return {
-			body: await getMessages(channelID)
-		};
+		return json(await getMessages(channelID));
 	}
 
-	return {
-		body: {}
-	};
+	return json({});
 };

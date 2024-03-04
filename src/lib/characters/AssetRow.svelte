@@ -62,7 +62,7 @@
 	export let choose: () => void = null;
 	export let unchoose: () => void = null;
 
-	const assetLock = database.locks.doc(asset.id);
+	const assetLock = database.locks?.doc(asset.id);
 	$: requirements = $assetLock?.data?.requirements;
 	$: limitations = $assetLock?.data?.limitations;
 
@@ -105,7 +105,7 @@
 	);
 </script>
 
-<div class="flex items-start hover-bg-primary-light p2 show-some" out:slide data-showing>
+<div class="flex items-start hover-bg-primary-light p2 show-some" out:slide|global data-showing>
 	<Inspect bind:open={inspecting} {asset} assetType={$assetType} />
 	{#if !isChosen}
 		<span class="flex-auto flex flex-column">
@@ -177,10 +177,10 @@
 		max-height: 10em;
 		overflow: hidden;
 	}
-	.show-some:global([data-showing='all']) .fields {
+	:global([data-showing='all']).show-some .fields {
 		max-height: none;
 	}
-	.show-some:global([data-showing='more']) .fields {
+	:global([data-showing='more']).show-some .fields {
 		max-height: 10em;
 	}
 	.show-more-btn {
@@ -191,7 +191,7 @@
 		width: 40% !important;
 		margin: 0 auto !important;
 	}
-	.show-some:global([data-showing='more']) .show-more-btn {
+	:global([data-showing='more']).show-some .show-more-btn {
 		display: block;
 		position: absolute;
 		bottom: 0em;

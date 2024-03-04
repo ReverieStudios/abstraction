@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { session } from '$app/stores';
 	import { page } from '$app/stores';
 	import Header from '$lib/ui/Header.svelte';
 	import Drawer, { AppContent, Content } from '@smui/drawer';

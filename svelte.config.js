@@ -1,3 +1,4 @@
+import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 import preprocess from 'svelte-preprocess';
 /** @type {import('@sveltejs/kit').Config} */
 import adapter from '@sveltejs/adapter-auto';
@@ -8,12 +9,8 @@ const dev = mode === 'development';
 const config = {
 	kit: {
 		adapter: adapter(),
-		vite: {
-			server: {
-				fs: {
-					allow: ['localPackages/firebase-ssr/browser']
-				}
-			}
+		alias: {
+			lib: 'src/lib'
 		}
 	},
 	preprocess: [
@@ -21,7 +18,8 @@ const config = {
 			sourceMap: dev,
 			postcss: true,
 			typescript: true
-		})
+		}),
+		vitePreprocess({})
 	]
 };
 

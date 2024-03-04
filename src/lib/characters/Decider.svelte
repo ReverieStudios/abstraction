@@ -10,7 +10,7 @@
 	import AssetSection from './AssetSection.svelte';
 	import type { User } from '$lib/database/types/User';
 	import { keyBy } from 'lodash-es';
-	import { dev } from '$app/env';
+	import { dev } from '$app/environment';
 
 	export let gameName: string = null;
 	export let gameID: string = null;
@@ -279,7 +279,7 @@
 				</div>
 			</div>
 		{:else}
-			<div transition:slide={{ duration: 200 }}>
+			<div transition:slide|global={{ duration: 200 }}>
 				<AssetSection
 					{gameID}
 					{user}

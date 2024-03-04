@@ -5,7 +5,6 @@
 	import Button from '$lib/ui/Button.svelte';
 	import Modal from '$lib/ui/Modal.svelte';
 	import { getNotify } from '$lib/ui/Notifications.svelte';
-	import { session } from '$app/stores';
 	import TabBar from '@smui/tab-bar';
 	import Tab, { Label } from '@smui/tab';
 	import { page } from '$app/stores';
@@ -21,7 +20,7 @@
 
 	const sendNotification = getNotify();
 
-	let updates: string[] = null;
+	let updates: string[] | null = null;
 
 	const activateToken = (data) =>
 		fetch('/api/user/activateToken', {
@@ -35,13 +34,14 @@
 			.then((body) => {
 				if (body.updates) {
 					updates = body.updates;
-					session.update(($session) => ({
-						...$session,
-						user: {
-							...$session.user,
-							...body.user
-						}
-					}));
+					// TODO: DO we need to update the user object in the page data?
+					// session.update(($session) => ({
+					// 	...$session,
+					// 	user: {
+					// 		...$session.user,
+					// 		...body.user
+					// 	}
+					// }));
 				} else if (body.noclaims) {
 					sendNotification({ text: 'Token appears to be invalid.' });
 				} else {

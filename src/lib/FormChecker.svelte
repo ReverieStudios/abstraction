@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { database } from './database';
 	import { derived, type Readable } from 'svelte/store';
-	import { session, page } from '$app/stores';
+	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 
 	const { forms, users } = database;

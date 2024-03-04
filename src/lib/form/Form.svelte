@@ -9,7 +9,7 @@
 	import { createForm } from 'svelte-forms-lib';
 	import { dequal as isEqual } from 'dequal/lite';
 	import DebugForm from './debug/DebugForm.svelte';
-	import { dev } from '$app/env';
+	import { dev } from '$app/environment';
 
 	export let initialValues = {};
 	export let validationSchema = null;

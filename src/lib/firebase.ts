@@ -20,11 +20,9 @@ if (import.meta.env.VITE_FIRESTORE_EMULATOR_HOST) {
 		port: import.meta.env.VITE_FIRESTORE_EMULATOR_PORT as string
 	};
 }
-
 const { auth, storage, store } = init(CONFIG, [Auth, Storage, Store], EMULATORS);
-
 // TODO move into store
-export const generateID = store.generateID;
+export const generateID = store?.generateID;
 
 export { auth, storage, store };
 
@@ -35,12 +33,13 @@ export const listenForAuth = () => {
 		const token = await (value ? value.getIdToken() : '');
 		setToken(token);
 	};
-	auth.onAuthStateChanged(callback);
-	auth.onIdTokenChanged(callback);
+	auth?.onAuthStateChanged(callback);
+	auth?.onIdTokenChanged(callback);
 };
 
 export const handleSignIn = async (userCredential: UserCredential) => {
 	const user = userCredential?.user;
+	console.log("userCrdential: "+userCredential+" user: "+user);
 	if (user) {
 		return user
 			.getIdToken(true)
@@ -51,7 +50,7 @@ export const handleSignIn = async (userCredential: UserCredential) => {
 
 export const signOut = () => {
 	setToken('')
-		.then(auth.signOut)
+		.then(auth?.signOut)
 		.then(() => (window.location.href = '/'));
 };
 

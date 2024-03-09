@@ -34,7 +34,7 @@
 </script>
 
 {#if $assetType?.data?.hideOnCharacterSheet !== true}
-	<div class="items-center hover-bg-primary-light p2" out:slide>
+	<div class="items-center hover-bg-primary-light p2" out:slide|global>
 		<span class="h3 flex items-center g1">
 			{#if asset.data.image}
 				{#await storage.getDownloadURL(asset.data.image) then url}

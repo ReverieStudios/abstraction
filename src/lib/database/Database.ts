@@ -22,17 +22,17 @@ interface Database {
 	tokens: Collection<Token>;
 	gameFlags: (gameID: string) => Database['flags'];
 
-	game?: CollectionDocument<Game>;
+	game?: CollectionDocument<Game> | null;
 
-	assets?: Collection<Asset>;
-	assetTypes?: DocumentMap<AssetType>;
-	characters?: Collection<Character>;
-	decisionTree?: DocumentMap<Decision>;
-	favorites?: CollectionDocument<Favorites>;
-	allFavorites?: Collection<Favorites>;
-	favoriteCounts?: CollectionDocument<FavoriteCounts>;
-	flags?: DocumentMap<Flag>;
-	locks?: Collection<Lock>;
+	assets?: Collection<Asset> | null;
+	assetTypes?: DocumentMap<AssetType> | null;
+	characters?: Collection<Character> | null;
+	decisionTree?: DocumentMap<Decision> | null;
+	favorites?: CollectionDocument<Favorites> | null;
+	allFavorites?: Collection<Favorites> | null;
+	favoriteCounts?: CollectionDocument<FavoriteCounts> | null;
+	flags?: DocumentMap<Flag> | null;
+	locks?: Collection<Lock> | null;
 }
 
 const last = {

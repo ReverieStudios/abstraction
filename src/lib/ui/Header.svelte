@@ -3,7 +3,7 @@
 	import ToggleColorScheme from '$lib/ToggleColorScheme.svelte';
 	import IconButton from '$lib/ui/IconButton.svelte';
 	import { debugEnabled } from '$lib/form/debug/DebugForm.svelte';
-	import { dev } from '$app/env';
+	import { dev } from '$app/environment';
 
 	export let isSignedIn = false;
 	export let navAutoShown = false;

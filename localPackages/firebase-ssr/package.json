@@ -8,7 +8,7 @@
 	},
 	"typings": "types.d.ts",
 	"peerDependencies": {
-		"firebase": "9.0.1",
-		"firebase-admin": "^9.10.0"
+		"firebase": "10.8.1",
+		"firebase-admin": "^12.0.0"
 	}
 }

@@ -27,9 +27,9 @@
 	export let nodesById: KeyMaps.Decision;
 	export let nodesByParentId: KeyGroups.Decision;
 
-	let selected = null;
+	let selected: Docs.Decision | null = null;
 	let tabs = ['Next Nodes', 'Variables'];
-	let activeTab = null;
+	let activeTab: string | null = null;
 
 	$: {
 		if (selected !== $state.selected) {
@@ -47,7 +47,7 @@
 	$: selectItems = [
 		{ text: 'Trees', value: { type: TREE_TYPE } },
 		...assetTypes.flatMap((type) => {
-			let subgroups = [];
+			let subgroups: {text: string, value: {type: string, subtype:string}}[] = [];
 			if (type.data.parentTypeID) {
 				const assetsOfType = assets.filter((asset) => asset.data.type === type.data.parentTypeID);
 				subgroups = assetsOfType.map((asset) => ({
@@ -69,7 +69,7 @@
 		.filter((opt) => opt.value !== $state.drawTreeID)
 		.sort((a, b) => a.text.localeCompare(b.text));
 
-	let selectedType = null;
+	let selectedType: {type: string} | null = null;
 	$: {
 		if (selected) {
 			if (!selectedType) {
@@ -104,7 +104,7 @@
 					label: getNodeName(node, assetsById),
 					value: node.id
 				}))
-				.filter((opt) => opt.value !== selected.data.treeID)
+				.filter((opt) => opt.value !== selected?.data.treeID)
 				.sort(sortChildren);
 
 			selectedChildren = (nodesByParentId[selected.id] ?? []).map(
@@ -145,7 +145,7 @@
 					}
 				})
 				.filter(Boolean);
-			selectedChildConditions = selected.data.childConditions;
+			selectedChildConditions = selected?.data.childConditions;
 		}
 	}
 
@@ -241,7 +241,10 @@
 								let:id
 								let:checked
 							>
-								<ChildCondition slot="extra" name="childConditions.{id}" {checked} />
+								<ChildCondition 
+								let:id
+								let:checked
+								slot="extra" name="childConditions.{id}" {checked} />
 							</CheckBoxGroup>
 						{/if}
 					{/if}

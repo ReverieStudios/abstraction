@@ -8,6 +8,7 @@
 	export let open = false;
 	export let asset: Docs.Asset;
 	export let assetType: Docs.AssetType;
+	let closeModal
 </script>
 
 {#if open}
@@ -31,7 +32,8 @@
 			</div>
 		{/each}
 		<div slot="actions">
-			<Button on:click={closeModal}>Ok</Button>
+			<Button 
+			on:click={closeModal}>Ok</Button>
 		</div>
 	</Modal>
 {/if}

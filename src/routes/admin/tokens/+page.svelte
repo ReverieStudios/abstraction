@@ -23,7 +23,6 @@
 
 
 	const userID: string = $page.data.userID;
-	console.log("userID=",userID);
 	const { games, gameFlags, tokens, users } = database;
 
 	const roleOptions = [

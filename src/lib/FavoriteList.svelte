@@ -5,7 +5,6 @@
 	import type { User } from './database/types/User';
 
 	const { allFavorites, users } = database;
-	console.log("allFavorites=",allFavorites,"users=",users);
 	const usersById = derived(users, ($users) => new Map($users.map((u) => [u.id, u.data])));
 	const favoritesByAssetId = derived([allFavorites, usersById], ([$favorites, $usersById]) => {
 		const byId = new Map();

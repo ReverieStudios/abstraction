@@ -39,7 +39,6 @@ export const listenForAuth = () => {
 
 export const handleSignIn = async (userCredential: UserCredential) => {
 	const user = userCredential?.user;
-	console.log("userCrdential: "+userCredential+" user: "+user);
 	if (user) {
 		return user
 			.getIdToken(true)

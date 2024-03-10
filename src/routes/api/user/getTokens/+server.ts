@@ -14,12 +14,10 @@ const saveSingleUseToken = (token: Token.SingleUseToken) => database.tokens.addD
 export const POST: RequestHandler = async (event) => {
 	const payload = (await event.request.json()) as Payload;
 	const user = event.locals.user;
-	console.log("payload=", payload, "user=", user);
 	// TODO allow game owners to generate game-only tokens
 	if (user?.roles && isOwner(user.roles)) {
 		const { numTokens, token } = payload;
 		if (token.createdBy !== user.uid) {
-			console.log("returning weird token response");
 			return json({ weird: true, token, user });
 		}
 		let encoded: string[] = [];
@@ -34,10 +32,8 @@ export const POST: RequestHandler = async (event) => {
 				)
 			);
 		}
-		console.log("returning encoded tokens");
 		return json({ encoded });
 	}
-	console.log("returning weirder response");
 	return json({
 			weirder: true
 		});

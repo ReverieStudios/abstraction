@@ -1,6 +1,6 @@
 import { init, Auth, Storage, Store } from 'firebase-ssr';
 import type { UserCredential } from 'firebase/auth';
-import { redirect } from '@sveltejs/kit';
+
 
 const CONFIG = JSON.parse(
 	(import.meta.env.SSR as boolean)
@@ -33,8 +33,8 @@ export const listenForAuth = () => {
 	const callback = async (user) => {
 		const token = await (user ? user.getIdToken() : '');
 		setToken(token);
-		if (user) {
-			redirect(302, '/home');
+		if (user && window.location.href === '/') {
+			window.location.href = '/home';
 		}
 
 	};

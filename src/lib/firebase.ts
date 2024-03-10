@@ -41,8 +41,10 @@ export const listenForAuth = () => {
 };
 
 export const handleSignIn = async (userCredential: UserCredential) => {
+	console.log("handleSignIn called");
 	const user = userCredential?.user;
 	if (user) {
+		console.log("handleSignIn should redirect");
 		return user
 			.getIdToken(true)
 			.then(setToken)

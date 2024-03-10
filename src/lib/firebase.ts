@@ -1,6 +1,6 @@
-import { invalidateAll } from '$app/navigation';
 import { init, Auth, Storage, Store } from 'firebase-ssr';
 import type { UserCredential } from 'firebase/auth';
+import { redirect } from '@sveltejs/kit';
 
 const CONFIG = JSON.parse(
 	(import.meta.env.SSR as boolean)
@@ -30,11 +30,13 @@ export { auth, storage, store };
 export const deleted = '__deleted';
 
 export const listenForAuth = () => {
-	const callback = async (value) => {
-		const token = await (value ? value.getIdToken() : '');
+	const callback = async (user) => {
+		const token = await (user ? user.getIdToken() : '');
 		setToken(token);
-		console.log("firebase callback reached, invalidating all, token=", token);
-		await invalidateAll();
+		if (user) {
+			redirect(302, '/home');
+		}
+
 	};
 	auth?.onAuthStateChanged(callback);
 	auth?.onIdTokenChanged(callback);

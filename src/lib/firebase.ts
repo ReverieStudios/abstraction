@@ -1,3 +1,4 @@
+import { invalidateAll } from '$app/navigation';
 import { init, Auth, Storage, Store } from 'firebase-ssr';
 import type { UserCredential } from 'firebase/auth';
 
@@ -32,6 +33,7 @@ export const listenForAuth = () => {
 	const callback = async (value) => {
 		const token = await (value ? value.getIdToken() : '');
 		setToken(token);
+		await invalidateAll();
 	};
 	auth?.onAuthStateChanged(callback);
 	auth?.onIdTokenChanged(callback);

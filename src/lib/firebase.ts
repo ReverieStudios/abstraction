@@ -33,6 +33,7 @@ export const listenForAuth = () => {
 	const callback = async (value) => {
 		const token = await (value ? value.getIdToken() : '');
 		setToken(token);
+		console.log("firebase callback reached, invalidating all, token=", token);
 		await invalidateAll();
 	};
 	auth?.onAuthStateChanged(callback);

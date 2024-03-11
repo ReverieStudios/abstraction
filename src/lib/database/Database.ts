@@ -35,7 +35,7 @@ interface Database {
 	locks?: Collection<Lock> | null;
 }
 
-const last = {
+const last: {gameID: string |null, userID: string | null} = {
 	gameID: null,
 	userID: null
 };
@@ -56,7 +56,7 @@ export const setUserID = (userID: string) => {
 
 const updateDatabase = () => {
 	const { gameID, userID } = last;
-
+	
 	database.game = gameID ? new CollectionDocument(`games/${gameID}`, null) : null;
 	database.assets = gameID
 		? new Collection(`games/${gameID}/assets`, { sortBy: 'name', cacheField: 'lastUpdated' })

@@ -57,7 +57,6 @@
 				if (removedCharName) {
 					update.enforceName = store.fieldValues.delete();
 				}
-				console.log(asset.id, update);
 				return update;
 			};
 

@@ -1,6 +1,7 @@
 import { init, Auth, Storage, Store } from 'firebase-ssr';
 import type { UserCredential } from 'firebase/auth';
 
+
 const CONFIG = JSON.parse(
 	(import.meta.env.SSR as boolean)
 		? (import.meta.env.VITE_FIREBASE_SERVER_CONFIG as string)
@@ -29,9 +30,16 @@ export { auth, storage, store };
 export const deleted = '__deleted';
 
 export const listenForAuth = () => {
-	const callback = async (value) => {
-		const token = await (value ? value.getIdToken() : '');
+	const callback = async (user) => {
+		const token = await (user ? user.getIdToken() : '');
 		setToken(token);
+		if (user && window.location.pathname === '/') {
+			return user
+			.getIdToken(true)
+			.then(setToken)
+			.then(() => (window.location.href = '/home'));
+		}
+
 	};
 	auth?.onAuthStateChanged(callback);
 	auth?.onIdTokenChanged(callback);
@@ -39,7 +47,6 @@ export const listenForAuth = () => {
 
 export const handleSignIn = async (userCredential: UserCredential) => {
 	const user = userCredential?.user;
-	console.log("userCrdential: "+userCredential+" user: "+user);
 	if (user) {
 		return user
 			.getIdToken(true)

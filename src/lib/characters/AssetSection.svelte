@@ -1,14 +1,11 @@
-<script lang="ts" context="module">
+<script lang="ts">
 	import { database } from '$lib/database';
 	import type { User } from '$lib/database/types/User';
 	import { keyBy, sortBy } from 'lodash-es';
-
 	const assetsById = derived(database.assets, ($assets) => {
 		return keyBy($assets, 'id');
 	});
-</script>
 
-<script lang="ts">
 	import { derived } from 'svelte/store';
 	import AssetRow from './AssetRow.svelte';
 
@@ -16,7 +13,7 @@
 	export let userID: string;
 	export let user: User;
 	export let assetIDs: string[];
-	export let chosenID: string = null;
+	export let chosenID: string | null = null;
 	export let subselection: {
 		name: string;
 		on: number;

@@ -50,6 +50,7 @@
 		const isApple = /(iP(ad|od|hone)|Safari)/i.test(window.navigator.userAgent);
 		if (isApple) {
 			console.log("handleProviderAuth isApple");
+			window.location.href = '/home';
 			auth.signInWithRedirect(provider).then(handleSignIn);
 		} else {
 			console.log("handleProviderAuth notApple");

@@ -36,8 +36,8 @@ export const listenForAuth = () => {
 		console.log("callback called ", user);
 		setToken(token);
 		if (user && window.location.pathname === '/') {
-			console.log("callback would be going home");
-			// window.location.href = '/home';
+			console.log("callback going home");
+			window.location.href = '/home';
 			// await invalidateAll();
 		}
 

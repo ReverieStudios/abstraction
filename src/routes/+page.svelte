@@ -49,8 +49,10 @@
 	const handleProviderAuth = (provider: Provider) => {
 		const isApple = /(iP(ad|od|hone)|Safari)/i.test(window.navigator.userAgent);
 		if (isApple) {
+			console.log("handleProviderAuth isApple");
 			auth.signInWithRedirect(provider).then(handleSignIn);
 		} else {
+			console.log("handleProviderAuth notApple");
 			auth.signInWithPopup(provider).then(handleSignIn);
 		}
 	};

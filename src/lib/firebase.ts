@@ -1,4 +1,3 @@
-import { invalidateAll } from '$app/navigation';
 import { init, Auth, Storage, Store } from 'firebase-ssr';
 import type { UserCredential } from 'firebase/auth';
 
@@ -36,9 +35,10 @@ export const listenForAuth = () => {
 		console.log("callback called ", user);
 		setToken(token);
 		if (user && window.location.pathname === '/') {
-			console.log("callback going home");
-			window.location.href = '/home';
-			// await invalidateAll();
+			return user
+			.getIdToken(true)
+			.then(setToken)
+			.then(() => (window.location.href = '/home'));
 		}
 
 	};

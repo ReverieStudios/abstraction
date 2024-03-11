@@ -16,6 +16,7 @@
 	}
 
 	const sendNotification = getNotify();
+	const loading: boolean = (window.location.hash === "redirecting");
 
 	const validate = (data: LoginFormData): Record<string, string> => {
 		const err = {} as Record<string, string>;
@@ -50,7 +51,7 @@
 		const isApple = /(iP(ad|od|hone)|Safari)/i.test(window.navigator.userAgent);
 		if (isApple) {
 			console.log("handleProviderAuth isApple");
-			window.location.href = '/home';
+			window.location.hash = "redirecting";
 			auth.signInWithRedirect(provider).then(handleSignIn);
 		} else {
 			console.log("handleProviderAuth notApple");
@@ -65,31 +66,38 @@
 
 <div class="content">
 	<h1>Reverie Portal</h1>
-
-	<Form {validate} onSubmit={handleLocalAuth} autocomplete="off">
-		<LayoutGrid>
-			<Cell span={12}>
-				<TextField class="col-12" label="Email" name="email" />
-			</Cell>
-			<Cell span={12}>
-				<TextField class="col-12" label="Password" type="password" name="password" />
-			</Cell>
-			<Cell spanDevices={{ desktop: 6, tablet: 4, phone: 2 }}>
-				<FormButton class="col-12" name="action" value="sign-up">Sign Up</FormButton>
-			</Cell>
-			<Cell spanDevices={{ desktop: 6, tablet: 4, phone: 2 }}>
-				<FormButton class="col-12" name="action" value="sign-in">Sign In</FormButton>
-			</Cell>
-
-			{#each Object.entries(auth.providers) as [name, provider] (name)}
+	{#if loading}
+		Logging in, please wait a moment...
+		<script type = "text/javascript">
+			console.log("Clearing hash");
+			window.location.hash = "";
+		</script>
+	{:else}
+		<Form {validate} onSubmit={handleLocalAuth} autocomplete="off">
+			<LayoutGrid>
 				<Cell span={12}>
-					<Button class="col-12" type="button" on:click={() => handleProviderAuth(provider)}>
-						Sign In With {name}
-					</Button>
+					<TextField class="col-12" label="Email" name="email" />
 				</Cell>
-			{/each}
-		</LayoutGrid>
-	</Form>
+				<Cell span={12}>
+					<TextField class="col-12" label="Password" type="password" name="password" />
+				</Cell>
+				<Cell spanDevices={{ desktop: 6, tablet: 4, phone: 2 }}>
+					<FormButton class="col-12" name="action" value="sign-up">Sign Up</FormButton>
+				</Cell>
+				<Cell spanDevices={{ desktop: 6, tablet: 4, phone: 2 }}>
+					<FormButton class="col-12" name="action" value="sign-in">Sign In</FormButton>
+				</Cell>
+
+				{#each Object.entries(auth.providers) as [name, provider] (name)}
+					<Cell span={12}>
+						<Button class="col-12" type="button" on:click={() => handleProviderAuth(provider)}>
+							Sign In With {name}
+						</Button>
+					</Cell>
+				{/each}
+			</LayoutGrid>
+		</Form>
+	{/if}
 </div>
 
 <style>

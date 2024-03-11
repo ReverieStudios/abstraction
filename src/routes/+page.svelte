@@ -1,14 +1,3 @@
-<script lang="ts" context="module">
-import { getRedirectResult, type UserCredential } from 'firebase/auth';
-console.log("Checking for redirect result");
-const result: UserCredential | null = await getRedirectResult(auth);
-if (result) {
-	console.log("Found a redirect result, redirecting home");
-	redirect(302, '/home');
-}
-
-</script>
-
 <script lang="ts">
 	import { auth, handleSignIn } from '$lib/firebase';
 	import Form from '$lib/form/Form.svelte';
@@ -18,7 +7,6 @@ if (result) {
 	import Button from '$lib/ui/Button.svelte';
 	import { getNotify } from '$lib/ui/Notifications.svelte';
 	import type { GoogleAuthProvider } from 'firebase/auth';
-	import { redirect } from '@sveltejs/kit';
 
 	type Provider = GoogleAuthProvider;
 	interface LoginFormData {
@@ -26,8 +14,6 @@ if (result) {
 		password: string;
 		action: string;
 	}
-
-
 
 	const sendNotification = getNotify();
 

@@ -4,7 +4,6 @@ import { redirect } from '@sveltejs/kit';
 export const load: LayoutServerLoad = ({ url, locals }) => {
     const { decodedToken, user } = locals;
 	if (url.pathname === '/') {
-		console.log("pathway is /");
 		if (user) {
 			redirect(302, '/home');
 		}

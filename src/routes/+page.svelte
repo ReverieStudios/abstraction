@@ -17,7 +17,6 @@
 
 	const sendNotification = getNotify();
 	const loading: boolean = (window.location.hash === "#redirecting");
-	console.log("hash is ", window.location.hash);
 	const validate = (data: LoginFormData): Record<string, string> => {
 		const err = {} as Record<string, string>;
 		if (!data.email) {
@@ -50,11 +49,9 @@
 	const handleProviderAuth = (provider: Provider) => {
 		const isApple = /(iP(ad|od|hone)|Safari)/i.test(window.navigator.userAgent);
 		if (isApple) {
-			console.log("handleProviderAuth isApple");
 			window.location.hash = "redirecting";
 			auth.signInWithRedirect(provider).then(handleSignIn);
 		} else {
-			console.log("handleProviderAuth notApple");
 			auth.signInWithPopup(provider).then(handleSignIn);
 		}
 	};
@@ -69,7 +66,6 @@
 	{#if loading}
 		Logging in, please wait a moment...
 		<script type = "text/javascript">
-			console.log("Clearing hash");
 			window.location.hash = "";
 		</script>
 	{:else}

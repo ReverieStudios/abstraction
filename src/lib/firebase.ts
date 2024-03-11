@@ -32,7 +32,6 @@ export const deleted = '__deleted';
 export const listenForAuth = () => {
 	const callback = async (user) => {
 		const token = await (user ? user.getIdToken() : '');
-		console.log("callback called ", user);
 		setToken(token);
 		if (user && window.location.pathname === '/') {
 			return user
@@ -47,10 +46,8 @@ export const listenForAuth = () => {
 };
 
 export const handleSignIn = async (userCredential: UserCredential) => {
-	console.log("handleSignIn called");
 	const user = userCredential?.user;
 	if (user) {
-		console.log("handleSignIn should redirect");
 		return user
 			.getIdToken(true)
 			.then(setToken)

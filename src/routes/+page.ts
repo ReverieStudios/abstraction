@@ -12,6 +12,6 @@ export async function load({ parent }) {
         }
     }
     catch (e) {
-        
+        console.log(e);
     }
 }

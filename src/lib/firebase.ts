@@ -1,3 +1,4 @@
+import { invalidateAll } from '$app/navigation';
 import { init, Auth, Storage, Store } from 'firebase-ssr';
 import type { UserCredential } from 'firebase/auth';
 
@@ -37,6 +38,7 @@ export const listenForAuth = () => {
 		if (user && window.location.pathname === '/') {
 			console.log("callback going home");
 			window.location.href = '/home';
+			await invalidateAll();
 		}
 
 	};

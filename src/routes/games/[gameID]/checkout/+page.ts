@@ -8,7 +8,7 @@ export async function load({ parent, params }) {
 
     const userFromDB = await database.users.doc(userID)?.read();
     if (!isPlayer(userFromDB?.data?.roles, params.gameID)) {
-        return { redirect: '/home', status: 302 };
+        redirect(302, '/home');
     }
 
     return {

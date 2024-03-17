@@ -6,6 +6,7 @@ import { json, type RequestHandler } from '@sveltejs/kit';
 import jwt from 'jsonwebtoken';
 import { get, setWith } from 'lodash-es';
 import { store } from '$lib/firebase';
+import { loadUserData } from '$lib/token';
 
 const decodeToken = (token: string): Token | null => {
 	if (!token) {
@@ -116,6 +117,11 @@ export const POST: RequestHandler = async (event) => {
 	if (updates.length > 0) {
 		await user.update({ roles: updatedRoles, flags: updatedFlags });
 	}
+
+	const authToken = event.cookies.get('token') ?? '';
+
+	let { userToken } = await loadUserData(authToken);
+	event.cookies.set('user', userToken, {path: '/', httpOnly: true, sameSite: 'lax'});
 
 	return json(
 		{

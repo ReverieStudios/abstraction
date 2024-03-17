@@ -13,8 +13,8 @@
 	$: visibleGames = $games.filter((game) => {
 		return (
 			game?.data?.public ||
-			$user?.data?.roles?.system >= User.AccountType.Reader ||
-			$user?.data?.roles?.games?.[game.id] >= User.AccountType.Reader
+			($user?.data?.roles?.system ?? 0) >= User.AccountType.Reader ||
+			($user?.data?.roles?.games?.[game.id] ?? 0) >= User.AccountType.Reader
 		);
 	});
 </script>

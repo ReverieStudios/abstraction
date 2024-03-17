@@ -1,12 +1,12 @@
 <script lang="ts" context="module">
 	import { database } from '$lib/database';
 	import { sortBy } from 'lodash-es';
-	import { derived } from 'svelte/store';
+	import { derived, writable } from 'svelte/store';
 	import type { User } from './database/types/User';
 
 	const { allFavorites, users } = database;
 	const usersById = derived(users, ($users) => new Map($users.map((u) => [u.id, u.data])));
-	const favoritesByAssetId = derived([allFavorites, usersById], ([$favorites, $usersById]) => {
+	const favoritesByAssetId = !allFavorites ? writable({}) : derived([allFavorites, usersById], ([$favorites, $usersById]) => {
 		const byId = new Map();
 		$favorites.forEach((fav) => {
 			const user = $usersById.get(fav.id);

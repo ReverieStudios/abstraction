@@ -9,7 +9,7 @@ export async function load({ locals }) {
     }
     const user = await database.users.doc(locals.user.uid)?.read();
     if (!anyAdminRoles(user?.data?.roles)) {
-        return { redirect: '/home', status: 302 };
+        redirect(302, '/home');
     }
     return {};
 };

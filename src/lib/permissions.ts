@@ -2,11 +2,11 @@ import { User } from './database/types/User';
 
 export const anyAdminRoles = (roles: User.Roles) => {
 	if (roles) {
-		if (roles.system > User.AccountType.Editor) {
+		if ((roles.system ?? 0) >= User.AccountType.Editor) {
 			return true;
 		}
-		for (let type of Object.values(roles.games)) {
-			if (type > User.AccountType.Editor) {
+		for (let type of Object.values(roles.games ?? {})) {
+			if ((type ?? 0) >= User.AccountType.Editor) {
 				return true;
 			}
 		}

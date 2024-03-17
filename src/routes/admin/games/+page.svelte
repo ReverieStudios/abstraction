@@ -4,8 +4,20 @@
 	import { goto } from '$app/navigation';
 	import { Wrapper, Item } from '$lib/boxLinks';
 	import { database } from '$lib/database';
+	import { page } from '$app/stores';
+	import { User } from '$lib/database/types/User';
 
-	const { games } = database;
+	const userID: string = $page.data.userID;
+	const { games, users } = database;
+
+	const user = users.doc(userID);
+	$: visibleGames = $games.filter((game) => {
+		return (
+			game?.data?.public ||
+			($user?.data?.roles?.system  ?? 0) >= User.AccountType.Editor ||
+			($user?.data?.roles?.games?.[game.id] ?? 0) >= User.AccountType.Editor
+		);
+	});
 </script>
 
 <svelte:head>
@@ -15,7 +27,7 @@
 <div class="content">
 	<h1>Games</h1>
 
-	<Wrapper items={$games} let:item>
+	<Wrapper items={visibleGames} let:item>
 		<Item href="/admin/games/{item.id}/">
 			<h4 class="bold h3 my1">
 				{item.data.name}

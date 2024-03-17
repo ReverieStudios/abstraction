@@ -6,6 +6,12 @@ export default defineConfig({
         server: {
             fs: {
                 allow: ['localPackages/firebase-ssr/browser']
-            }
+            },
+            proxy: {
+                '/__/auth': {
+                  target: 'https://reverie-demo.firebaseapp.com',
+                  changeOrigin: true
+                }
+              },
         },
 });

@@ -33,11 +33,11 @@ export const POST: RequestHandler = async (event) => {
 				const lock = await database.locks?.doc(assetID)?.read(transaction);
 				if (!lock) {
 					// unknown asset
-					return json(false);
+					return false;
 				}
 				const character = await database.characters?.doc(uid)?.read(transaction);
 				if (depth > -1 && (character?.data?.assets ?? []).length > depth) {
-					return json(false);
+					return false;
 				}
 
 				const update = addLock(lock, uid, flags);
@@ -46,22 +46,22 @@ export const POST: RequestHandler = async (event) => {
 				await database.characters?.doc(uid)?.update(
 					{ assets: [...(character?.data?.assets ?? []), assetID] }, transaction
 				);
-				return json(true);
+				return true;
 			})
 			.catch((ex) => {
 				if (ex instanceof AssetIsLimitedError) {
-					return json({ limited: true });
+					return { limited: true };
 				} else if (ex instanceof AssetFailsRequirementsError) {
-					return json({
+					return {
 						missingRequiredFlags: ex.missingRequiredFlags,
 						extraLimitedFlags: ex.extraLimitedFlags
-					});
+					};
 				}
 				console.error(ex);
-				return json(false);
+				return false;
 			});
 
-		return lockResult;
+		return json(lockResult);
 	} catch (err: any) {
 		return json({ success: false, ex: (err as Error).stack });
 	}

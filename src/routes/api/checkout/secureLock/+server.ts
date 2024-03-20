@@ -36,7 +36,6 @@ export const POST: RequestHandler = async (event) => {
 					return json(false);
 				}
 				const character = await database.characters?.doc(uid)?.read(transaction);
-				console.log({ depth, assets: (character?.data?.assets ?? []).length });
 				if (depth > -1 && (character?.data?.assets ?? []).length > depth) {
 					return json(false);
 				}
@@ -47,7 +46,6 @@ export const POST: RequestHandler = async (event) => {
 				await database.characters?.doc(uid)?.update(
 					{ assets: [...(character?.data?.assets ?? []), assetID] }, transaction
 				);
-
 				return json(true);
 			})
 			.catch((ex) => {
@@ -63,7 +61,7 @@ export const POST: RequestHandler = async (event) => {
 				return json(false);
 			});
 
-		return json(lockResult as any);
+		return lockResult;
 	} catch (err: any) {
 		return json({ success: false, ex: (err as Error).stack });
 	}

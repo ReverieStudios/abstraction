@@ -2,7 +2,7 @@
 	import Decider from '$lib/characters/Decider.svelte';
 	import { derived } from 'svelte/store';
 	import { getNotify } from '$lib/ui/Notifications.svelte';
-	import type { LockLimited, LockPrereqs, LockResult } from 'src/routes/api/checkout/sercureLock/+server';
+	import type {LockLimited, LockPrereqs, LockResult } from '../../../api/checkout/secureLock/+server';
 	import { onMount } from 'svelte';
 	import { isPlayer } from '$lib/permissions';
 	import { page } from '$app/stores';

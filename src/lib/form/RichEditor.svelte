@@ -37,7 +37,7 @@
 		const editor = new MediumEditor([el], {
 			placeholder: false,
 			toolbar: {
-				buttons: ['bold', 'italic', 'underline', 'h2', 'h3', 'quote', 'link']
+				buttons: ['bold', 'italic', 'underline', 'h2', 'h3', 'quote', 'anchor']
 			}
 		});
 		return () => {

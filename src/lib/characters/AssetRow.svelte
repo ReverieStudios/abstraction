@@ -41,7 +41,7 @@
 	import { slide } from 'svelte/transition';
 	import LockIcon from './LockIcon.svelte';
 	import RichViewer from '$lib/ui/RichViewer.svelte';
-	import IconButton from '$lib/ui/IconButton.svelte';
+	import IconButton from 'lib/ui/IconButton.svelte';
 	import { derived } from 'svelte/store';
 	import Inspect from './Inspect.svelte';
 	import FavoriteIcon from './FavoriteIcon.svelte';
@@ -52,6 +52,8 @@
 	import Button from '$lib/ui/Button.svelte';
 	import Tooltip from '$lib/ui/Tooltip.svelte';
 	import { getFields } from '$lib/database/types/Assets';
+	import Accordion, { Panel, Header, Content } from '@smui-extra/accordion';
+	import SmuiIconButton, { Icon } from '@smui/icon-button';
 
 	export let gameID: string;
 	export let userID: string;
@@ -98,14 +100,32 @@
 			return [];
 		}
 		return getFields(asset, type, false);
+	})
+
+	const summmaryField = derived(assetType, (type) => {
+		if (!type) {
+			return [];
+		}
+		return asset.data.summary ? getFields(asset, type, false)[0] : null;
+	});
+
+	const extraFields = derived(assetType, (type) => {
+		if (!type) {
+			return [];
+		}
+		const sliceAmount = asset.data.summary ? 1 : 0;
+
+		return getFields(asset, type, false).slice(sliceAmount);
 	});
 
 	const fieldsAfterChosen = derived(fields, (allFields) =>
 		allFields.filter((f) => f.showAfterChosen)
 	);
+
+	let fieldsPanelOpen = false;
 </script>
 
-<div class="flex items-start hover-bg-primary-light p2 show-some" out:slide|global data-showing>
+<div class="flex items-start hover-bg-primary-light p2 show-all" out:slide|global data-showing>
 	<Inspect bind:open={inspecting} {asset} assetType={$assetType} />
 	{#if !isChosen}
 		<span class="flex-auto flex flex-column">
@@ -128,24 +148,50 @@
 					</Tooltip>
 				</div>
 			</span>
-			<div class="fields" use:maybeShowMore={asset}>
-				{#each $fields as { label, text, type }}
+			<div class="fields">
+				{#if $summmaryField}
 					<div>
-						{#if label}<h4 class="h3">{label}</h4>{/if}
+						{#if $summmaryField.label}<h4 class="h3">{$summmaryField.label}</h4>{/if}
 						<div class="px2">
-							{#if type === 'markdown'}
-								<RichViewer value={text} />
+							{#if $summmaryField.type === 'markdown'}
+								<RichViewer value={$summmaryField.text} />
 							{:else}
-								<p>{text}</p>
+								<p>{$summmaryField.text}</p>
 							{/if}
 						</div>
+					</div>					
+				{/if}
+				{#if $extraFields.length > 0}
+					<div class="accordion-container">
+						<Accordion>
+							<Panel bind:open={fieldsPanelOpen} color="secondary">
+								<Header>
+									Details
+									<SmuiIconButton slot="icon" toggle pressed={fieldsPanelOpen}>
+										<Icon class="material-icons" on>expand_less</Icon>
+										<Icon class="material-icons">expand_more</Icon>
+									</SmuiIconButton>
+								</Header>
+								<Content>
+									{#each $extraFields as { label, text, type }}
+										<div>
+											{#if label}<h4 class="h3">{label}</h4>{/if}
+											<div class="px2">
+												{#if type === 'markdown'}
+													<RichViewer value={text} />
+												{:else}
+													<p>{text}</p>
+												{/if}
+											</div>
+										</div>
+									{/each}
+								</Content>
+							</Panel>
+						</Accordion>
 					</div>
-				{/each}
+				{/if}
 			</div>
 		</span>
-		<div class="show-more-btn">
-			<Button color="secondary" on:click={() => (inspecting = true)}>Show More</Button>
-		</div>
 	{:else}
 		<button type="button" on:click={unchoose} class="text-button flex flex-column">
 			<div class="h3 flex items-center">

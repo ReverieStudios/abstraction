@@ -69,7 +69,7 @@
 		Choice {subselection.on}
 	</h4>
 {/if}
-<div class="rounded bg-primary mb2">
+<div class="rounded bg-surface mb2">
 	<div class="flex flex-column g1 divided">
 		{#each $assets as asset (asset.id)}
 			{#if !chosenID || chosenID === asset.id}

@@ -6,8 +6,8 @@
 @use '@material/theme/index' as theme with (
 	$primary: #a93f55,
 	$secondary: #96a1ca,
-	$surface: #f0eef1,
-	$background: #e1fbfe,
+	$surface: mix(#96a1ca, #E0E0E0, 40%),
+	$background: #E0E0E0,
 	$error: color-palette.$red-300
 );
 $success: color-palette.$green-300;
@@ -16,7 +16,7 @@ $accent: #96a1ca;
 
 html,
 body {
-	background-color: theme.$surface;
+	background-color: theme.$background;
 	color: theme.$on-surface;
 }
 

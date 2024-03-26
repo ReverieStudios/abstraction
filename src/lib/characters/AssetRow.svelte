@@ -123,10 +123,14 @@
 	);
 
 	let fieldsPanelOpen = false;
+
+	let extraPanelsOpen = $extraFields.length > 0 ? Array($extraFields.length).fill(true) : [];
+
+	let chosenPanelsOpen = $fieldsAfterChosen.length > 0 ? Array($fieldsAfterChosen.length).fill(false): [];
+
 </script>
 
-<div class="flex items-start hover-bg-primary-light p2 show-all" out:slide|global data-showing>
-	<Inspect bind:open={inspecting} {asset} assetType={$assetType} />
+<div class="flex items-start surface p2 show-all" out:slide|global data-showing>
 	{#if !isChosen}
 		<span class="flex-auto flex flex-column">
 			<span class="h3 flex items-center g1">
@@ -144,7 +148,7 @@
 						<FavoriteIcon assetID={asset.id} {gameID} />
 					</Tooltip>
 					<Tooltip rich text="Add '{asset.data.name}'">
-						<IconButton icon="chevron_right" on:click={choose} />
+						<IconButton icon="add_shopping_cart" on:click={choose} />
 					</Tooltip>
 				</div>
 			</span>
@@ -164,6 +168,28 @@
 				{#if $extraFields.length > 0}
 					<div class="accordion-container">
 						<Accordion>
+							{#if $extraFields.length == 1}
+								{#each $extraFields as { label, text, type }, i}
+									<Panel bind:open={fieldsPanelOpen} color="secondary">
+										<Header>
+											{#if label}{label}{/if}
+											<SmuiIconButton slot="icon" toggle pressed={extraPanelsOpen[i]}>
+												<Icon class="material-icons" on>expand_less</Icon>
+												<Icon class="material-icons">expand_more</Icon>
+											</SmuiIconButton>
+										</Header>
+										<Content>
+											<div class="px2">
+												{#if type === 'markdown'}
+													<RichViewer value={text} />
+												{:else}
+													<p>{text}</p>
+												{/if}
+											</div>
+										</Content>
+									</Panel>
+								{/each}
+							{:else}
 							<Panel bind:open={fieldsPanelOpen} color="secondary">
 								<Header>
 									Details
@@ -173,48 +199,76 @@
 									</SmuiIconButton>
 								</Header>
 								<Content>
-									{#each $extraFields as { label, text, type }}
-										<div>
-											{#if label}<h4 class="h3">{label}</h4>{/if}
-											<div class="px2">
-												{#if type === 'markdown'}
-													<RichViewer value={text} />
-												{:else}
-													<p>{text}</p>
-												{/if}
-											</div>
-										</div>
-									{/each}
+									<Accordion multiple>
+										{#each $extraFields as { label, text, type }, i}
+											<Panel bind:open={extraPanelsOpen[i]} color="secondary">
+												<Header>
+													{#if label}<h4 class="h3">{label}</h4>{/if}
+													<SmuiIconButton slot="icon" toggle pressed={extraPanelsOpen[i]}>
+														<Icon class="material-icons" on>expand_less</Icon>
+														<Icon class="material-icons">expand_more</Icon>
+													</SmuiIconButton>
+												</Header>
+												<Content>
+													<div class="px2">
+														{#if type === 'markdown'}
+															<RichViewer value={text} />
+														{:else}
+															<p>{text}</p>
+														{/if}
+													</div>
+												</Content>
+											</Panel>
+										{/each}
+									</Accordion>
 								</Content>
 							</Panel>
+							{/if}
 						</Accordion>
 					</div>
 				{/if}
 			</div>
 		</span>
 	{:else}
-		<button type="button" on:click={unchoose} class="text-button flex flex-column">
+		<div class="text-button flex flex-column">
 			<div class="h3 flex items-center">
 				<LockIcon {lockStatus} {asset} />
 				{asset.data.name}
+				<div class="ml-auto flex items-center g1">
+					<Tooltip rich text="Remove '{asset.data.name}'">
+						<IconButton icon="remove_shopping_cart" on:click={unchoose} />
+					</Tooltip>
+				</div>
 			</div>
 			{#if $fieldsAfterChosen.length > 0}
 				<div class="fields" use:maybeShowMore={asset}>
-					{#each $fieldsAfterChosen as { label, text, type }}
-						<div>
-							{#if label}<h4 class="h3">{label}</h4>{/if}
-							<div class="px2">
-								{#if type === 'markdown'}
-									<RichViewer value={text} />
-								{:else}
-									<p>{text}</p>
-								{/if}
-							</div>
-						</div>
-					{/each}
+					<div class="accordion-container">
+						<Accordion multiple>
+							{#each $fieldsAfterChosen as { label, text, type }, i}
+								<Panel bind:open={chosenPanelsOpen[i]} color="surface">
+									<Header>
+										{#if label}{label}{:else}Summary{/if}
+										<SmuiIconButton slot="icon" toggle pressed={chosenPanelsOpen[i]}>
+											<Icon class="material-icons" on>expand_less</Icon>
+											<Icon class="material-icons">expand_more</Icon>
+										</SmuiIconButton>
+									</Header>
+									<Content>
+										<div class="px2">
+											{#if type === 'markdown'}
+												<RichViewer value={text} />
+											{:else}
+												<p>{text}</p>
+											{/if}
+										</div>
+									</Content>
+								</Panel>
+							{/each}
+						</Accordion>
+					</div>
 				</div>
 			{/if}
-		</button>
+		</div>
 	{/if}
 </div>
 

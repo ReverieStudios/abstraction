@@ -38,7 +38,6 @@
 		const limit = lock?.data?.claimLimit ?? 0;
 		const claims = lock?.data?.claims ?? [];
 		const queue = lock?.data?.claimsQueue ?? [];
-		console.log("lock=", lock);
 		if (!limit) {
 			return Lock.Status.None;
 		} else if (claims.some((lock) => lock.purchaser === userID)) {

@@ -3,38 +3,6 @@
 	import type { Docs } from '$lib/database';
 
 	const assetTypes = database.assetTypes;
-
-	const maybeShowMore = (node: HTMLElement, asset: Docs.Asset) => {
-		const checkSize = () => {
-			const wrapper = node.closest('[data-showing]') as HTMLElement;
-			if (!asset.data.summary) {
-				wrapper.dataset.showing = 'all';
-				return;
-			}
-
-			wrapper.dataset.showing = '';
-			const { scrollHeight, offsetHeight } = node;
-			const diff = scrollHeight - offsetHeight;
-			if (diff <= 0) {
-				return;
-			} else if (diff < 100) {
-				wrapper.dataset.showing = 'all';
-			} else {
-				wrapper.dataset.showing = 'more';
-			}
-		};
-
-		const resizeObserver = new ResizeObserver(checkSize);
-		resizeObserver.observe(node);
-
-		checkSize();
-
-		return {
-			destroy: () => {
-				resizeObserver.disconnect();
-			}
-		};
-	};
 </script>
 
 <script lang="ts">
@@ -43,13 +11,11 @@
 	import RichViewer from '$lib/ui/RichViewer.svelte';
 	import IconButton from 'lib/ui/IconButton.svelte';
 	import { derived } from 'svelte/store';
-	import Inspect from './Inspect.svelte';
 	import FavoriteIcon from './FavoriteIcon.svelte';
 	import { Lock, isPurchased } from '$lib/database/types/Lock';
 	import { storage } from '$lib/firebase';
 	import FlagCheck from './FlagCheck.svelte';
 	import type { User } from '$lib/database/types/User';
-	import Button from '$lib/ui/Button.svelte';
 	import Tooltip from '$lib/ui/Tooltip.svelte';
 	import { getFields } from '$lib/database/types/Assets';
 	import Accordion, { Panel, Header, Content } from '@smui-extra/accordion';
@@ -72,16 +38,16 @@
 		const limit = lock?.data?.claimLimit ?? 0;
 		const claims = lock?.data?.claims ?? [];
 		const queue = lock?.data?.claimsQueue ?? [];
-
+		console.log("lock=", lock);
 		if (!limit) {
 			return Lock.Status.None;
-		} else if (queue.includes(userID)) {
-			return Lock.Status.PlayerQueued;
 		} else if (claims.some((lock) => lock.purchaser === userID)) {
 			return Lock.Status.PlayerClaimed;
 		} else if (claims.length >= limit && claims.every((lock) => isPurchased(lock))) {
 			return Lock.Status.Unavailable;
-		} else if (claims.length < limit) {
+		} else if (queue.includes(userID)) {
+			return Lock.Status.PlayerQueued;
+		}  else if (claims.length < limit) {
 			return Lock.Status.PlayerCanClaim;
 		} else {
 			return Lock.Status.PlayerCanQueue;
@@ -130,7 +96,7 @@
 
 </script>
 
-<div class="flex items-start surface p2 show-all" out:slide|global data-showing>
+<div class="flex items-start p2" out:slide|global data-showing>
 	{#if !isChosen}
 		<span class="flex-auto flex flex-column">
 			<span class="h3 flex items-center g1">
@@ -230,7 +196,7 @@
 			</div>
 		</span>
 	{:else}
-		<div class="text-button flex flex-column">
+		<div class="flex-auto flex flex-column">
 			<div class="h3 flex items-center">
 				<LockIcon {lockStatus} {asset} />
 				{asset.data.name}
@@ -241,7 +207,7 @@
 				</div>
 			</div>
 			{#if $fieldsAfterChosen.length > 0}
-				<div class="fields" use:maybeShowMore={asset}>
+				<div class="fields">
 					<div class="accordion-container">
 						<Accordion multiple>
 							{#each $fieldsAfterChosen as { label, text, type }, i}
@@ -273,42 +239,6 @@
 </div>
 
 <style>
-	.show-some .fields {
-		max-height: 10em;
-		overflow: hidden;
-	}
-	:global([data-showing='all']).show-some .fields {
-		max-height: none;
-	}
-	:global([data-showing='more']).show-some .fields {
-		max-height: 10em;
-	}
-	.show-more-btn {
-		display: none;
-	}
-	.show-more-btn > :global(button) {
-		display: block !important;
-		width: 40% !important;
-		margin: 0 auto !important;
-	}
-	:global([data-showing='more']).show-some .show-more-btn {
-		display: block;
-		position: absolute;
-		bottom: 0em;
-		left: 1em;
-		right: 1em;
-		background: linear-gradient(transparent, var(--background-color) 50%);
-		padding-bottom: 0.5em;
-	}
-	.text-button {
-		border: 0;
-		text-align: left;
-		width: 100%;
-		background: none;
-		padding-left: 0;
-		font-weight: bold;
-		cursor: pointer;
-	}
 	.image {
 		background-position: center center;
 		background-size: 70%;

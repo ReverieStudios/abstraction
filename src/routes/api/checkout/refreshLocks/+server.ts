@@ -21,7 +21,7 @@ export const POST: RequestHandler = async (event) => {
 				const character = await database.characters?.doc(uid)?.read(transaction);
 
 				if (!character.exists) {
-					return json(false);
+					return false;
 				}
 				const assetIDs = character.data.assets;
 				const locks = await Promise.all(
@@ -36,11 +36,11 @@ export const POST: RequestHandler = async (event) => {
 					}
 				}
 
-				return json(true);
+				return true;
 			})
 			.catch((ex) => {
 				console.error(ex);
-				return json(false);
+				return false;
 			});
 
 		return json({ success: result });

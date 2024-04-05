@@ -137,6 +137,8 @@
 				emails = body.emailNames;
 			});
 	};
+
+	let closeModal;
 </script>
 
 <svelte:head>

@@ -18,7 +18,7 @@ export const POST: RequestHandler = async (event) => {
 
 			if (!character.exists) {
 				console.log('no exists');
-				return json(false);
+				return false;
 			}
 			const assetIDs = character.data.assets;
 			const locks = await Promise.all(
@@ -28,14 +28,14 @@ export const POST: RequestHandler = async (event) => {
 			const anyQueued = locks.some((lock) => lock.data.claimsQueue.includes(uid));
 			if (anyQueued) {
 				console.log('queued');
-				return json(false);
+				return false;
 			}
 
 			const hasAllLocks = locks.every((lock) => couldOrIsLocked(lock, uid));
 			if (!hasAllLocks) {
 				const missingLocks = locks.filter((lock) => !couldOrIsLocked(lock, uid));
 				console.log('not has all', missingLocks);
-				return json(false);
+				return false;
 			}
 
 			for (const lock of locks) {
@@ -55,11 +55,11 @@ export const POST: RequestHandler = async (event) => {
 				transaction
 			);
 
-			return json(true);
+			return true;
 		})
 		.catch((ex) => {
 			console.error(ex);
-			return json(false);
+			return false;
 		});
 
 	return json({ success: wasFinalized });

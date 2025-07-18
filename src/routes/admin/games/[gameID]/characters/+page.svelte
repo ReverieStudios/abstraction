@@ -1,17 +1,27 @@
 <script lang="ts">
-	import { Wrapper, Item } from '$lib/boxLinks';
+	import { Wrapper } from '$lib/boxLinks';
 	import { database } from '$lib/database/Database';
 	import type { Game } from '$lib/database/types/Game';
 	import Modal from '$lib/ui/Modal.svelte';
-	import AssetSection from '$lib/characters/AssetSection.svelte';
 	import type { User } from '$lib/database/types/User';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import ConfirmButton from '$lib/ConfirmButton.svelte';
 	import { getNotify } from '$lib/ui/Notifications.svelte';
+	import { keyBy } from 'lodash-es';
+	import PurchasedAssetRow from '$lib/characters/PurchasedAssetRow.svelte';
+	import { derived } from 'svelte/store';
+	import type { Readable } from 'svelte/store';
+	import type { Asset } from '$lib/database/types/Assets';
 
 	let characters = database.characters;
-	const charactersLoaded = characters.hasLoaded;
+	const assetsByID: Readable<Record<string, Asset>> = derived([database.assets], ([$assets]) => {
+		if (!$assets) {
+			return {};
+		}
+		return keyBy($assets, 'id');
+	});
+	const charactersLoaded = characters?.hasLoaded;
 	const game: Game = $page.data.game;
 	const gameID: string = $page.data.gameID;
 	const user: User = $page.data.user;
@@ -67,16 +77,17 @@
 
 <Modal open={characterID} on:close={() => goto('?')}>
 	{#if $charactersLoaded}
-		<h2>{$characters.find((c) => c.id === characterID)?.data?.name ?? 'No Name'}</h2>
+		<h2>{$characters?.find((c) => c.id === characterID)?.data?.name ?? 'No Name'}</h2>
 
 		<div class="rounded bg-primary mb2">
 			<div class="flex flex-column g1">
-				<AssetSection
-					{gameID}
-					{user}
-					userID={user.uid}
-					assetIDs={$characters.find((c) => c.id === characterID)?.data?.assets ?? []}
-				/>
+			{#each $characters?.find((c) => c.id === characterID)?.data?.assets ?? [] as asset}
+				{#if $assetsByID[asset]}
+					<PurchasedAssetRow
+						asset={$assetsByID[asset]}
+					/>
+				{/if}
+			{/each}
 			</div>
 		</div>
 	{/if}
@@ -85,7 +96,7 @@
 <div class="content">
 	<h1>Characters</h1>
 
-	<Wrapper class="mb2" items={$characters} let:item={character}>
+	<Wrapper class="mb2" items={$characters ?? []} let:item={character}>
 		<div class="flex bg-primary hover-bg-primary-light items-center pr2">
 			<a href="?character={character.id}" class="block p2 flex-auto">
 				<h4 class="bold h3 my1">

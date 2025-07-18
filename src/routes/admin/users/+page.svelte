@@ -1,9 +1,10 @@
 <script lang="ts">
-	import { database } from '$lib/database';
+	import { database, DocType } from '$lib/database';
 	import type { Docs } from '$lib/database/types';
 	import { User } from '$lib/database/types/User';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
+	import ConfirmButton from '$lib/ConfirmButton.svelte';
 	import Form from '$lib/form/Form.svelte';
 	import Modal from '$lib/ui/Modal.svelte';
 	import Button from '$lib/ui/Button.svelte';
@@ -46,6 +47,23 @@
 					sendNotification({ text: 'Password reset failed.' });
 				}
 			});
+
+	const deleteUser = (user: DocType<User>) => {
+		let userID = user.id;
+		if (confirm('Are you sure you want to delete this user? This cannot be undone.')) {
+			fetch('/api/user/manage/delete', { method: 'POST', body: JSON.stringify({ userID }) })
+				.then((res) => res.json())
+				.then((res) => {
+					if (res.success) {
+						user.remove();
+						sendNotification({ text: 'User deleted successfully.' });
+						goto('?');
+					} else {
+						sendNotification({ text: 'Failed to delete user.' });
+					}
+				});
+		}
+	};
 
 	const checkForms = (userForms) => {
 		const formList = $forms || [];
@@ -144,11 +162,12 @@
 				{user.data.name} ({user.data.email})
 			</a>
 			<span
-				class="formData"
+				class="formData justify-between flex items-center"
 				class:allDone={formData.allUpToDate}
 				class:allSigned={formData.allSigned}
 			>
-				<Tooltip rich text={formData.tooltip}><Icon>{formData.icon}</Icon></Tooltip>
+				<Tooltip class="flex" rich text={formData.tooltip}><Icon>{formData.icon}</Icon></Tooltip>
+				<ConfirmButton slot="actions" on:confirm={() => deleteUser(user)} />
 			</span>
 		</div>
 	{/each}

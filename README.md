@@ -17,7 +17,7 @@ Key concepts:
 - Using Svelte and SvelteKit, the character creator uses both server-side rendering (SSR) and client-side rendering. I recommend reading on SSR as a concept if you
 you are not familiar. The SvelteKit documentation will explain how SvelteKit controls what is rendered where.
 - All content within the character creator are managed through Firestore. So whenever a designer creates an asset or a participant builds a character, that's in Firestore.
-- Users are authenticated through Firebase Authentication. The charactger creator server redirects all authentication to Firebase, so the character creator never stores passwords,
+- Users are authenticated through Firebase Authentication. The character creator server redirects all authentication to Firebase, so the character creator never stores passwords,
 just the user tokens returned by Firebase. 
 - While SvelteKit can be deployed to many places (including Firebase hosting), we have only ever deployed this application to [Vercel](https://vercel.com/home).
 
@@ -31,7 +31,7 @@ For Windows, it's a little messier. I highly recommend you follow Microsoft's ad
 - Install Windows Subsystem for Linux (WSL). I recommend installing Ubuntu as your Linux distribution.
 - Install Windows Terminal (an improved command line).
 - Install `nvm` _inside your WSL Linux distribution_.
-- Use `nvm` to install `npm` (in Linux).
+- Use `nvm` to install `npm` (in Linux). I recommend Node.js version 18 as that what is Vercel is using.
 - Install VS Code with 
 While this takes some work upfront, it is much easier and more stable to develop inside of Linux (via WSL) than in Windows. 
 All the steps above are covered described in detail in this article from Microsoft:
@@ -64,6 +64,7 @@ do not lose it! This is your private key.
 it automatically.
 - Enable Authentication, and choose Email/Password and Google as your sign-in providers.
 
+To run locally you will need to [install the Firebase CLI](https://firebase.google.com/docs/cli#install_the_firebase_cli). You need this to run the emulators when running locally. Follow the instructions for the [Firebase emulator](https://firebase.google.com/docs/emulator-suite/install_and_configure) as it has some more prerequisites, including Java. `sudo apt install openjdk-21-jdk` is the easiest way to do this in Linux or WSL. 
 
 # Setting up and running the app locally
 All of the following commands should be run from the project root - the same directory that this file is in.
@@ -90,7 +91,7 @@ Ultimately, your `.env` file should look something like this:
 
 ```sh
 VITE_FIREBASE_SERVER_CONFIG='{"credential": {"type": "service_account", "project_id": "reverie-demo", "private_key_id": "085558d9fe1600db19fac5f04408d482420d58ec", "private_key": "-----BEGIN PRIVATE KEY-----\nyour very long private key\n-----END PRIVATE KEY-----\n", "client_email": "firebase-adminsdk-abc123@your-project.iam.gserviceaccount.com", "client_id": "123456789", "auth_uri": "https://accounts.google.com/o/oauth2/auth", "token_uri": "https://oauth2.googleapis.com/token", "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs", "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-abc123%40your-project.iam.gserviceaccount.com", "universe_domain": "googleapis.com"}, "storageBucket": "your-project.appspot.com"}'
-VITE_FIREBASE_CLIENT_CONFIG='{"apiKey": "your public key", "authDomain": "your-porject.firebaseapp.com", "projectId": "your-project", "storageBucket": "your-project.appspot.com", "messagingSenderId": "123456", "appId": "1:2345:6789", "measurementId": "A-BCD1234"}'
+VITE_FIREBASE_CLIENT_CONFIG='{"apiKey": "your public key", "authDomain": "your-project.firebaseapp.com", "projectId": "your-project", "storageBucket": "your-project.appspot.com", "messagingSenderId": "123456", "appId": "1:2345:6789", "measurementId": "A-BCD1234"}'
 VITE_FIREBASE_AUTH_EMULATOR_HOST="127.0.0.1:9099"
 VITE_FIRESTORE_EMULATOR_HOST="127.0.0.1"
 VITE_FIRESTORE_EMULATOR_PORT="8080"
@@ -102,8 +103,9 @@ also includes the URL for your Firestore database, so it's more like `'{"crenden
 (Most Firebase project use json files instead of massive environment variables, this is a potential enhancement for the character creator,
 although of course it risks exposing the json files if the server/host is misconfigured.)
 
-You'll also need to make sure your .firebasesrc file reflects the name of your project. The default is 
-reverie-demo, but if the project is named something else, it'll need to be added there.
+You may need to update the default project name in `.firebaserc` to match the `projectId` string in your `VITE_FIREBASE_CLIENT_CONFIG` so that the character creator 
+doesn't freak out when it gets an authentication token from an unexpected Firebase project. The default is 
+reverie-demo, but if the project is named something else, it'll need to be updated there.
 
 ## Running locally
 

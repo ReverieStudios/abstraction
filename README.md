@@ -193,3 +193,7 @@ the application has already been migrated.
 
 This app was originally created by Deeg. Further updates, bug fixes, and enhancements were created by Max Metzger.
 This application is copyright Reverie Studios, 2024.
+
+# License
+
+This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.

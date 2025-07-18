@@ -102,6 +102,9 @@ also includes the URL for your Firestore database, so it's more like `'{"crenden
 (Most Firebase project use json files instead of massive environment variables, this is a potential enhancement for the character creator,
 although of course it risks exposing the json files if the server/host is misconfigured.)
 
+You'll also need to make sure your .firebasesrc file reflects the name of your project. The default is 
+reverie-demo, but if the project is named something else, it'll need to be added there.
+
 ## Running locally
 
 Now that you've done all of the above, you can finally run the application locally!

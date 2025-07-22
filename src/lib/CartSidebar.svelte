@@ -3,17 +3,48 @@
   import type { Readable } from 'svelte/store';
   import { derived } from 'svelte/store';
   import { database } from '$lib/database';
-
+  import Button, { Label } from '@smui/button';
 
   export let chosenAssets: Readable<string[]>; // Array of selected asset IDs
   export let nodesById: Record<string, any>;    // Map of all nodes by ID
   const assetsById = derived(database.assets, ($assets) => {
     return Object.fromEntries(($assets ?? []).map(asset => [asset.id, asset]));
   });
+  const assetTypesById = derived(database.assetTypes, ($types) => {
+  return Object.fromEntries(($types ?? []).map(type => [type.id, type]));
+});
+
   let open = false;
+
+  function scrollToAsset(assetID: string) {
+    const el = document.getElementById(`asset-${assetID}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add('highlight');
+      setTimeout(() => el.classList.remove('highlight'), 1200);
+    }
+  }
+
+  function getTypeName(typeId: string) {
+return $assetTypesById[typeId]?.data?.name ?? '';
+  }
+
 </script>
 
 <style>
+  .cart-item {
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .cart-item:hover {
+    background: var(--color-hover, #eee);
+  }
+  /* Highlight effect for AssetRow */
+  .highlight {
+    box-shadow: 0 0 0 4px var(--color-primary, #2196f3);
+    transition: box-shadow 0.2s;
+  }
+
   .cart-sidebar {
     position: fixed;
     top: 0;
@@ -79,9 +110,15 @@
         <div class="text-primary">No items selected.</div>
       {:else}
         {#each $chosenAssets as id, i}
-          <div class="cart-item mb1 mt1 bg-surface h4">
-            {i + 1}. {$assetsById[id]?.data?.name ?? id}
-          </div>
+          <Button
+            type="button"
+            class="cart-item mb1 mt1 h4 flex flex-auto"
+            on:click={() => scrollToAsset(id)}
+          >
+            <Label style="text-align: left;">
+              {i + 1}. {getTypeName($assetsById[id].data?.type)} - {$assetsById[id]?.data?.name ?? id}
+            </Label>
+          </Button>
         {/each}
       {/if}
     </div>

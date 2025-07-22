@@ -97,7 +97,7 @@
 
 <div class="flex items-start p2" out:slide|global data-showing>
 	{#if !isChosen}
-		<span class="flex-auto flex flex-column">
+		<span class="flex-auto flex flex-column" id={"asset-" + asset.id}>
 			<span class="h3 flex items-center g1">
 				<LockIcon {lockStatus} {asset} />
 				{#if asset.data.image}
@@ -195,7 +195,7 @@
 			</div>
 		</span>
 	{:else}
-		<div class="flex-auto flex flex-column">
+		<div class="flex-auto flex flex-column" id={"asset-" + asset.id}>
 			<div class="h3 flex items-center">
 				<LockIcon {lockStatus} {asset} />
 				{asset.data.name}

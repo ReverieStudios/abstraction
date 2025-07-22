@@ -11,6 +11,7 @@
 	import type { User } from '$lib/database/types/User';
 	import { keyBy } from 'lodash-es';
 	import { dev } from '$app/environment';
+	import CartSidebar from 'lib/CartSidebar.svelte';
 
 	export let gameName: string = null;
 	export let gameID: string = null;
@@ -255,6 +256,7 @@
 <svelte:head>
 	<title>{gameName ?? 'Game'} Character Builder</title>
 </svelte:head>
+<CartSidebar {chosenAssets} {nodesById} />
 
 <div class="content mt3">
 	{#if list.length === 0}

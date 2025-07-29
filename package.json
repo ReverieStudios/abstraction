@@ -87,6 +87,8 @@
 		"@sentry/browser": "^6.17.9",
 		"@sentry/tracing": "^6.17.9",
 		"cookie": "^0.4.1",
-		"jsonwebtoken": "^8.5.1"
+		"jsonwebtoken": "^8.5.1",
+		"medium-editor-autolist": "^1.0.1",
+		"medium-editor-markdown": "^3.2.2"
 	}
 }

@@ -6,7 +6,9 @@
 	import { onMount } from 'svelte';
 	import { getFieldContext } from './getFormContext';
 
-	const turndownService = new TurndownService();
+	if (typeof window !== 'undefined') {
+		window.TurndownService = TurndownService;
+	}
 
 	export let name: string;
 	export let label: string;
@@ -27,6 +29,8 @@
 		}
 	}
 	let el: HTMLDivElement;
+	let markdownExt: any;
+	let latestMarkdown = '';
 
 	let hasFocus = false;
 	$: visibleText = /\S/.test(content);
@@ -34,10 +38,25 @@
 
 	onMount(async () => {
 		const MediumEditor = (await import('medium-editor')).default;
+		const Markdown = (await import('medium-editor-markdown')).default;
+		const Autolist = (await import('medium-editor-autolist')).default;
+		const autolist = new Autolist();
+
+		markdownExt = new Markdown({
+			callback: (md: string) => {
+				latestMarkdown = md;
+			}
+		});
+
+
 		const editor = new MediumEditor([el], {
 			placeholder: false,
+			extensions: {
+				'autolist': autolist,
+				'markdown': markdownExt
+			},
 			toolbar: {
-				buttons: ['bold', 'italic', 'underline', 'h2', 'h3', 'quote', 'anchor']
+				buttons: ['bold', 'italic', 'underline', 'h2', 'h3', 'quote', 'anchor', 'orderedlist', 'unorderedlist']
 			}
 		});
 		return () => {
@@ -45,11 +64,14 @@
 		};
 	});
 
+	const saveFormOnBlur = () => {
+		hasFocus = false;
+		saveForm();
+	}
+
 	const saveForm = () => {
-		const html = el.innerHTML;
 		content = el.innerText;
-		const markdown = turndownService.turndown(html);
-		lastUpdated = markdown;
+		lastUpdated = latestMarkdown;
 		updateValidateField(name, lastUpdated);
 	};
 </script>
@@ -66,7 +88,7 @@
 		bind:this={el}
 		class="editable mdc-text-field__input"
 		on:focus={() => (hasFocus = true)}
-		on:blur={() => (hasFocus = false)}
+		on:blur={saveFormOnBlur}
 		on:input={saveForm}
 		contenteditable="true"
 		bind:innerHTML={html}

@@ -30,11 +30,22 @@
 
 	export let choose: (assetID: string) => void = null;
 	export let unchoose: () => void = null;
+	const favorites = database.favorites;
 
-	const assets = derived(assetsById, ($assetsById) => {
+	const assets = derived(
+	[assetsById, favorites],
+	([$assetsById, $favorites]) => {
 		const assets = assetIDs.map((id) => $assetsById?.[id]).filter(Boolean);
-		return sortBy(assets, 'data.name');
-	});
+		return assets.sort((a, b) => {
+			const favA = $favorites?.data?.[a.id] ? -1 : 0;
+			const favB = $favorites?.data?.[b.id] ? -1 : 0;
+			if (favA !== favB) return favA - favB;
+			const nameA = a.data?.name?.toLowerCase() ?? '';
+			const nameB = b.data?.name?.toLowerCase() ?? '';
+			return nameA.localeCompare(nameB);
+		});
+		}
+	);
 
 	const assetHeader = derived([assetsById, database.assetTypes], ([$assetsById, $assetTypes]) => {
 		const typeID = $assetsById[assetIDs[0]]?.data?.type;

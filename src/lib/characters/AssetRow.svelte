@@ -20,6 +20,7 @@
 	import { getFields } from '$lib/database/types/Assets';
 	import Accordion, { Panel, Header, Content } from '@smui-extra/accordion';
 	import SmuiIconButton, { Icon } from '@smui/icon-button';
+	import { afterUpdate, tick } from 'svelte';
 
 	export let gameID: string;
 	export let userID: string;
@@ -93,9 +94,31 @@
 
 	let chosenPanelsOpen = $fieldsAfterChosen.length > 0 ? Array($fieldsAfterChosen.length).fill(false): [];
 
+	let rowEl: HTMLElement;
+	let pendingScroll = false;
+
+  	async function scrollToSelf() {
+		pendingScroll = true;
+  	};
+
+	afterUpdate(async () => {
+        if (pendingScroll && rowEl) {
+            await tick();
+            await new Promise(requestAnimationFrame);
+            rowEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            rowEl.classList.add('highlight');
+            setTimeout(() => rowEl.classList.remove('highlight'), 1200);
+            console.log('scrolled to', rowEl.id);
+            pendingScroll = false;
+        }
+    });
+
+	$: if (rowEl) {
+		console.log('rowEl assigned:', rowEl?.id);
+	}
 </script>
 
-<div class="flex items-start p2" out:slide|global data-showing>
+<div class="flex items-start p2" out:slide|global data-showing bind:this={rowEl} id={"asset-" + asset.id}>
 	{#if !isChosen}
 		<span class="flex-auto flex flex-column" id={"asset-" + asset.id}>
 			<span class="h3 flex items-center g1">
@@ -110,7 +133,7 @@
 
 				<div class="ml-auto flex items-center g1">
 					<Tooltip rich text="Mark '{asset.data.name}' as a favorite">
-						<FavoriteIcon assetID={asset.id} {gameID} />
+						<FavoriteIcon assetID={asset.id} {gameID}  on:favorited={scrollToSelf} />
 					</Tooltip>
 					<Tooltip rich text="Add '{asset.data.name}'">
 						<IconButton icon="add_shopping_cart" on:click={choose} />
@@ -246,5 +269,13 @@
 		width: 50px;
 		border-radius: 50%;
 		border: 1px solid #ccc;
+	}
+	:global(.highlight) {
+		background: color-mix(in srgb, var(--primary) 20%, transparent) !important;
+		box-shadow: 0 2px 12px 0 color-mix(in srgb, var(--primary) 30%, transparent) !important;
+		border-radius: 12px;
+		z-index: 10;
+		position: relative;
+		transition: box-shadow 0.4s, background 0.4s;
 	}
 </style>

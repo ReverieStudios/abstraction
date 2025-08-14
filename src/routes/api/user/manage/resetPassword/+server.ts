@@ -1,5 +1,6 @@
 import { json, type RequestHandler } from '@sveltejs/kit';
-import { auth, generateID } from '$lib/firebase';
+import { auth } from '$lib/firebase';
+import { randomBytes } from 'crypto';
 import { isEditor } from '$lib/permissions';
 
 export const POST: RequestHandler = async (event) => {
@@ -24,7 +25,7 @@ export const POST: RequestHandler = async (event) => {
 			return json({ success: false });
 		}
 
-		const newPassword = generateID();
+        const newPassword = randomBytes(24).toString('base64url');
 
 		await auth.updateUser(userID, {
 			password: newPassword

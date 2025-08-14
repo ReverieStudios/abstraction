@@ -8,12 +8,12 @@ interface SimpleToken {
 	flags: Token['flags'];
 }
 
-const encodeToken = (token: SimpleToken): string |null => {
+const encodeToken = (token: SimpleToken): string | null => {
 	if (!token) {
 		return null;
 	}
 	const privateKey = import.meta.env.VITE_JWT_KEY as string;
-	return jwt.sign(token, privateKey);
+    return jwt.sign(token, privateKey, { algorithm: 'HS256' });
 };
 
 export const POST: RequestHandler = async (event) => {

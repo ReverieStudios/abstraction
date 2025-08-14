@@ -6,15 +6,15 @@ import cookie from 'cookie';
 import { auth } from '$lib/firebase';
 
 const decodeUserToken = (userToken: string): User | null => {
-	if (!userToken || userToken === 'null') {
-		return null;
-	}
-	try {
-		const privateKey = import.meta.env.VITE_JWT_KEY as string;
-		return jwt.verify(userToken, privateKey) as User;
-	} catch (ex) {
-		return null;
-	}
+    if (!userToken || userToken === 'null') {
+        return null;
+    }
+    try {
+        const privateKey = import.meta.env.VITE_JWT_KEY as string;
+        return jwt.verify(userToken, privateKey, { algorithms: ['HS256'] }) as User;
+    } catch (ex) {
+        return null;
+    }
 };
 
 export const handle: Handle = async ({ event, resolve }) => {

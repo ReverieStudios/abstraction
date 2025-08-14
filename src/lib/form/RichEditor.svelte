@@ -26,7 +26,7 @@
 			html = marked.parse($value, { breaks: true });
 		}
 	}
-	let el: HTMLDivElement;
+    let el: HTMLDivElement;
 
 	let hasFocus = false;
 	$: visibleText = /\S/.test(content);
@@ -46,7 +46,7 @@
 	});
 
 	const saveForm = () => {
-		const html = el.innerHTML;
+        const html = el.innerHTML;
 		content = el.innerText;
 		const markdown = turndownService.turndown(html);
 		lastUpdated = markdown;

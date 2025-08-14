@@ -17,10 +17,12 @@ export const loadUserData = async (token: string): Promise<{ userToken: string; 
 
 		userData.uid = uid;
 
-		const privateKey = (import.meta.env.VITE_JWT_KEY ??
-			'471207445716c8fbc32d3ad0c39aab60a762bdb7') as string; // ensure some basic key to avoid error
+		const privateKey = import.meta.env.VITE_JWT_KEY as string;
+		if (!privateKey) {
+			throw new Error('VITE_JWT_KEY missing');
+		}
 		return {
-			userToken: jwt.sign(userData, privateKey),
+			userToken: jwt.sign(userData, privateKey, { algorithm: 'HS256' }),
 			userData
 		};
 	}

@@ -13,8 +13,8 @@ const decodeToken = (token: string): Token | null => {
 		return null;
 	}
 	try {
-		const privateKey = import.meta.env.VITE_JWT_KEY as string;
-		return jwt.verify(token, privateKey) as Token;
+        const privateKey = import.meta.env.VITE_JWT_KEY as string;
+        return jwt.verify(token, privateKey, { algorithms: ['HS256'] }) as Token;
 	} catch (ex) {
 		return null;
 	}
@@ -118,10 +118,10 @@ export const POST: RequestHandler = async (event) => {
 		await user.update({ roles: updatedRoles, flags: updatedFlags });
 	}
 
-	const authToken = event.cookies.get('token') ?? '';
+    const authToken = event.cookies.get('token') ?? '';
 
-	let { userToken } = await loadUserData(authToken);
-	event.cookies.set('user', userToken, {path: '/', httpOnly: true, sameSite: 'lax'});
+    let { userToken } = await loadUserData(authToken);
+    event.cookies.set('user', userToken, { path: '/', httpOnly: true, sameSite: 'lax', secure: true });
 
 	return json(
 		{

@@ -33,8 +33,11 @@ html {
   color: var(--mdc-theme-on-primary, #fff) !important;
 }
 
-.mdc-tab--active .mdc-tab__text-label {
+.mdc-tab--active {
   background: var(--primary) !important;
+}
+
+.mdc-tab--active .mdc-tab__text-label {
   color: var(--mdc-theme-on-primary, #fff) !important;
 }
 

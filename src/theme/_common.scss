@@ -18,6 +18,16 @@ html {
 	--on-surface: #{theme.$on-surface};
 }
 
+:root {
+  --mdc-theme-primary: var(--primary);
+  --mdc-theme-on-primary: var(--on-primary);
+  --mdc-theme-secondary: var(--secondary);
+  --mdc-theme-on-secondary: var(--on-secondary);
+  --mdc-theme-surface: var(--surface);
+  --mdc-theme-background: var(--background);
+  --mdc-theme-error: var(--error);
+}
+
 @each $style in ('primary', 'secondary', 'success', 'warning', 'error', 'surface', 'accent') {
 	.bg-#{$style} {
 		background-color: var(--#{$style});

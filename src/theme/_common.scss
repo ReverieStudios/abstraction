@@ -28,11 +28,12 @@ html {
   --mdc-theme-error: var(--error);
 }
 /* needed for a bug fix with SMUI tabs */
-.mdc-tab--active .mdc-tab__text-label {
+.mdc-tab {
+  background: var(--primary-dark) !important;
   color: var(--mdc-theme-on-primary, #fff) !important;
 }
-.mdc-tab {
-  background: var(--primary-dark);
+
+.mdc-tab--active .mdc-tab__text-label {
   color: var(--mdc-theme-on-primary, #fff) !important;
 }
 

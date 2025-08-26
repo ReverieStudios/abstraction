@@ -27,6 +27,14 @@ html {
   --mdc-theme-background: var(--background);
   --mdc-theme-error: var(--error);
 }
+/* needed for a bug fix with SMUI tabs */
+.mdc-tab--active .mdc-tab__text-label {
+  color: var(--mdc-theme-on-primary, #fff) !important;
+}
+.mdc-tab {
+  background: var(--primary-dark);
+  color: var(--mdc-theme-on-primary, #fff) !important;
+}
 
 @each $style in ('primary', 'secondary', 'success', 'warning', 'error', 'surface', 'accent') {
 	.bg-#{$style} {

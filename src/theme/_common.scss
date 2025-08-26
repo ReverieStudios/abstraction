@@ -17,10 +17,6 @@ html {
 	--surface: #{theme.$surface};
 	--on-surface: #{theme.$on-surface};
 }
-a,
-a:visited {
-	color: theme.$secondary;
-}
 
 @each $style in ('primary', 'secondary', 'success', 'warning', 'error', 'surface', 'accent') {
 	.bg-#{$style} {

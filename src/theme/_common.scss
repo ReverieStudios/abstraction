@@ -34,6 +34,7 @@ html {
 }
 
 .mdc-tab--active .mdc-tab__text-label {
+  background: var(--primary) !important;
   color: var(--mdc-theme-on-primary, #fff) !important;
 }
 

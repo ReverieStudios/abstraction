@@ -17,9 +17,28 @@ html {
 	--surface: #{theme.$surface};
 	--on-surface: #{theme.$on-surface};
 }
-a,
-a:visited {
-	color: theme.$secondary;
+
+:root {
+  --mdc-theme-primary: var(--primary);
+  --mdc-theme-on-primary: var(--on-primary);
+  --mdc-theme-secondary: var(--secondary);
+  --mdc-theme-on-secondary: var(--on-secondary);
+  --mdc-theme-surface: var(--surface);
+  --mdc-theme-background: var(--background);
+  --mdc-theme-error: var(--error);
+}
+/* needed for a bug fix with SMUI tabs */
+.mdc-tab {
+  background: var(--primary-dark) !important;
+  color: var(--mdc-theme-on-primary, #fff) !important;
+}
+
+.mdc-tab--active {
+  background: var(--primary) !important;
+}
+
+.mdc-tab--active .mdc-tab__text-label {
+  color: var(--mdc-theme-on-primary, #fff) !important;
 }
 
 @each $style in ('primary', 'secondary', 'success', 'warning', 'error', 'surface', 'accent') {

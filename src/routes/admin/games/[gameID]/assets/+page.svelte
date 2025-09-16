@@ -209,7 +209,7 @@
 				label="Quantity limit"
 				helperText="0 = unlimited"
 				type="number"
-				name="lock.claimLimit"		
+				name="lock.claimLimit"
 			/>
 
 			<div class="flex">

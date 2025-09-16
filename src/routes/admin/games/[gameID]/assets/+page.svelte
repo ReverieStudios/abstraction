@@ -163,7 +163,15 @@
 
 		<Form
 			class="flex flex-column g2"
-			initialValues={{ asset: editing.asset?.data, lock: lock?.data }}
+			initialValues={
+				{
+					asset: editing.asset?.data,
+					lock: {
+					...lock?.data,
+					claimLimit: lock?.data?.claimLimit ?? "0"
+					}
+				}
+			}
 			multiform
 			onSubmit={updateAsset}
 			afterSubmit={closeModal}
@@ -201,7 +209,7 @@
 				label="Quantity limit"
 				helperText="0 = unlimited"
 				type="number"
-				name="lock.claimLimit"
+				name="lock.claimLimit"		
 			/>
 
 			<div class="flex">

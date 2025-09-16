@@ -10,6 +10,7 @@ const CONFIG = JSON.parse(
 interface Emulators {
 	auth?: string;
 	store?: { host: string; port: string };
+	storage?: { host: string; port: string };
 }
 const EMULATORS: Emulators = {};
 if (import.meta.env.VITE_FIREBASE_AUTH_EMULATOR_HOST) {
@@ -21,6 +22,14 @@ if (import.meta.env.VITE_FIRESTORE_EMULATOR_HOST) {
 		port: import.meta.env.VITE_FIRESTORE_EMULATOR_PORT as string
 	};
 }
+
+if (import.meta.env.VITE_FIRESTORE_STORAGE_HOST) {
+	EMULATORS.storage = {
+		host: import.meta.env.VITE_FIRESTORE_STORAGE_HOST as string,
+		port: import.meta.env.VITE_FIRESTORE_STORAGE_PORT as string
+	}
+}
+
 const { auth, storage, store } = init(CONFIG, [Auth, Storage, Store], EMULATORS);
 // TODO move into store
 export const generateID = store?.generateID;

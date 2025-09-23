@@ -13,6 +13,7 @@
 	import CopyBox from '$lib/ui/CopyBox.svelte';
 	import Icon from '$lib/ui/Icon.svelte';
 	import Tooltip from '$lib/ui/Tooltip.svelte';
+	import { getHighestRole, roleToClaim } from 'lib/permissions';
 
 	const { users, games, forms } = database;
 
@@ -23,10 +24,24 @@
 		.map(([text, value]) => ({ text, value }));
 
 	$: userID = $page.url.searchParams.get('user') as string;
-	$: editing = $users.find((user) => user.id === userID) as Docs.User;
+	$: editing = $users.find((user: { id: string; }) => user.id === userID) as Docs.User;
 
 	const deselect = () => goto('?');
-	const updateUser = ({ roles }) => editing.update({ roles });
+	const updateUser = async ({ roles }: { roles: User['roles'] }) => {
+			await editing.update({ roles });
+
+			const highestRole = getHighestRole(roles); // returns User.AccountType
+			const claimRole = roleToClaim(highestRole); // string or null
+
+			await fetch('/api/user/manage/grantRole', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					uid: editing.id,
+					role: claimRole
+				})
+			});
+		};
 
 	let newPassword = '';
 	const loadUser = (userID: string) => {

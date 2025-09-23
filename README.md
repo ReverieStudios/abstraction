@@ -80,11 +80,13 @@ look at your app. In the "SDK setup and configuration" section, click the "Confi
 JSON.
 `VITE_FIREBASE_SERVER_CONFIG` - Tells the sever how to talk to firebase for authentication and for database transactions. This is a json string as 
 well, wrapping the secret provided by firebase in a `"credential": {} "storageBucket": ""` block. 
-Firebase can be run locally via emulation, to do so just add these three lines:
+Firebase can be run locally via emulation, to do so just add these five lines:
 ```sh
 VITE_FIREBASE_AUTH_EMULATOR_HOST="127.0.0.1:9099"
 VITE_FIRESTORE_EMULATOR_HOST="127.0.0.1"
 VITE_FIRESTORE_EMULATOR_PORT="8080"
+VITE_FIRESTORE_STORAGE_HOST="127.0.0.1"
+VITE_FIRESTORE_STORAGE_PORT="9199"
 ```
 
 Ultimately, your `.env` file should look something like this:

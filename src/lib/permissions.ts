@@ -33,3 +33,21 @@ export const isPlayer = (roles: User.Roles, gameID?: string) => {
 export const isReader = (roles: User.Roles, gameID?: string) => {
 	return isRole(roles, User.AccountType.Reader, gameID);
 };
+
+export const getHighestRole = (roles: User.Roles): User.AccountType =>{
+    if (!roles) return User.AccountType.None;
+    const system = roles.system ?? User.AccountType.None;
+    const gameRoles = Object.values(roles.games ?? {});
+    const allRoles = [system, ...gameRoles];
+    return Math.max(...allRoles);
+}
+
+export const roleToClaim = (role: User.AccountType): string | null => {
+	switch (role) {
+		case User.AccountType.Owner: return 'owner';
+		case User.AccountType.Editor: return 'editor';
+		case User.AccountType.Player: return 'player';
+		case User.AccountType.Reader: return 'reader';
+		default: return null;
+	}
+};

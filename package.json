@@ -2,7 +2,7 @@
 	"name": "reverie",
 	"version": "0.0.1",
 	"engines": {
-		"node": "20.x"
+		"node": "22.x"
 	},
 	"license": "GPL-3.0",
 	"scripts": {
@@ -17,7 +17,7 @@
 		"emulator": "npm run clear-emulator-ports && firebase emulators:start --only=firestore,auth --import=dev-data --export-on-exit",
 		"smui:build": "smui-theme compile static/smui-dark.css -i src/theme/dark && smui-theme compile static/smui.css -i src/theme"
 	},
-    "devDependencies": {
+	"devDependencies": {
 		"@material/typography": "^14.0.0",
 		"@smui-extra/accordion": "^7.0.0-beta.16",
 		"@smui-extra/autocomplete": "^7.0.0-beta.16",
@@ -44,7 +44,7 @@
 		"@sveltejs/kit": "^2.0.0",
 		"@sveltejs/vite-plugin-svelte": "^3.0.0",
 		"@types/cookie": "^0.4.1",
-        "@types/jsonwebtoken": "^9.0.6",
+		"@types/jsonwebtoken": "^9.0.6",
 		"@types/lodash-es": "^4.17.6",
 		"@types/marked": "^4.0.2",
 		"@types/medium-editor": "^5.0.5",
@@ -60,15 +60,15 @@
 		"eslint": "^8.0.0",
 		"eslint-config-prettier": "^8.1.0",
 		"eslint-plugin-svelte": "^2.35.1",
-        "firebase": "10.8.1",
-        "firebase-admin": "^12.0.0",
+		"firebase": "^10.8.1",
+		"firebase-admin": "^12.0.0",
 		"firebase-ssr": "file:./localPackages/firebase-ssr",
 		"lodash-es": "^4.17.21",
 		"marked": "^4.0.12",
 		"medium-editor": "^5.23.3",
 		"postcss": "^8.3.5",
 		"postcss-load-config": "^3.1.0",
-        "prettier": "~2.5.1",
+		"prettier": "~2.5.1",
 		"prettier-plugin-svelte": "^2.10.1",
 		"slugify": "^1.6.5",
 		"smui-theme": "^7.0.0-beta.16",
@@ -90,6 +90,7 @@
 		"@sentry/browser": "^7.119.1",
 		"@sentry/tracing": "^7.119.1",
 		"cookie": "^0.4.1",
+		"firebase-tools": "^14.17.0",
 		"isomorphic-dompurify": "^2.15.0",
 		"jsonwebtoken": "^9.0.2",
 		"medium-editor-autolist": "^1.0.1",

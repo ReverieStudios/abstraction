@@ -1,3 +1,4 @@
+import admin from 'firebase-admin';
 import { database } from '$lib/database';
 import { getAccountType } from '$lib/database/types/User';
 import { isSingleUse, isUnlimited, Token } from '$lib/database/types/Token';
@@ -6,6 +7,7 @@ import { json, type RequestHandler } from '@sveltejs/kit';
 import jwt from 'jsonwebtoken';
 import { get, setWith } from 'lodash-es';
 import { store } from '$lib/firebase';
+import { getHighestRole, roleToClaim } from '$lib/permissions';
 import { loadUserData } from '$lib/token';
 
 const decodeToken = (token: string): Token | null => {
@@ -116,6 +118,22 @@ export const POST: RequestHandler = async (event) => {
 
 	if (updates.length > 0) {
 		await user.update({ roles: updatedRoles, flags: updatedFlags });
+
+		// Update custom claim to match new highest role
+		const highestRole = getHighestRole(updatedRoles);
+		const claimRole = roleToClaim(highestRole);
+		try {
+			const userRecord = await admin.auth().getUser(uid);
+			const claims = { ...userRecord.customClaims };
+			if (claimRole) {
+				claims.role = claimRole;
+			} else {
+				delete claims.role;
+			}
+			await admin.auth().setCustomUserClaims(uid, claims);
+		} catch (err: unknown) {
+			console.error('Failed to update custom claim:', err);
+		}
 	}
 
     const authToken = event.cookies.get('token') ?? '';

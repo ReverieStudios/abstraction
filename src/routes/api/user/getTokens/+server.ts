@@ -18,7 +18,7 @@ export const POST: RequestHandler = async (event) => {
 	if (user?.roles && isOwner(user.roles)) {
 		const { numTokens, token } = payload;
 		if (token.createdBy !== user.uid) {
-			return json({ weird: true, token, user });
+			return json({ weird: true, token, user }, {status: 403});
 		}
 		let encoded: string[] = [];
 		if (token.type === Token.GenerationType.Unlimited) {
@@ -36,5 +36,5 @@ export const POST: RequestHandler = async (event) => {
 	}
 	return json({
 			weirder: true
-		});
+		}, {status: 403});
 };

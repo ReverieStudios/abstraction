@@ -139,6 +139,28 @@
 	};
 
 	let closeModal;
+
+// Snapshot of initial form values taken when the editor opens.
+// This prevents reactive changes (locks, etc.) from re-setting the
+// form while the user is editing and causing fields like
+// `claimLimit` to revert to the stored value (often zero).
+let formInitial: { asset?: any; lock?: any } | null = null;
+
+$: if (editing && formInitial == null) {
+	// take a deep copy so later updates to `editing`/`lock` don't mutate
+	formInitial = {
+		asset: JSON.parse(JSON.stringify(editing.asset?.data ?? {})),
+		lock: JSON.parse(JSON.stringify(lock?.data ?? {}))
+	};
+
+	// If there's no claimLimit stored, default to string "0" so the
+	// input shows zero but we don't overwrite user's edits repeatedly.
+	if (formInitial.lock.claimLimit == null) {
+		formInitial.lock.claimLimit = '0';
+	}
+} else if (!editing) {
+	formInitial = null;
+}
 </script>
 
 <svelte:head>
@@ -163,15 +185,7 @@
 
 		<Form
 			class="flex flex-column g2"
-			initialValues={
-				{
-					asset: editing.asset?.data,
-					lock: {
-					...lock?.data,
-					claimLimit: lock?.data?.claimLimit ?? "0"
-					}
-				}
-			}
+			initialValues={formInitial ?? undefined}
 			multiform
 			onSubmit={updateAsset}
 			afterSubmit={closeModal}

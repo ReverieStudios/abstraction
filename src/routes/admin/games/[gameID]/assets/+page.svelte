@@ -163,15 +163,7 @@
 
 		<Form
 			class="flex flex-column g2"
-			initialValues={
-				{
-					asset: editing.asset?.data,
-					lock: {
-					...lock?.data,
-					claimLimit: lock?.data?.claimLimit ?? "0"
-					}
-				}
-			}
+			initialValues={{ asset: editing.asset?.data, lock: lock?.data }}
 			multiform
 			onSubmit={updateAsset}
 			afterSubmit={closeModal}
@@ -296,6 +288,7 @@
 													name: t,
 													summary: ''
 												})}
+												afterCreate={(id) => (id ? database.locks.doc(id).update({ claimLimit: 0 }) : Promise.resolve())}
 											/>
 										</div>
 									</div>
@@ -310,6 +303,7 @@
 							parent={assets}
 							id={() => null}
 							data={(t) => ({ type: type.id, name: t, summary: '' })}
+							afterCreate={(id) => (id ? database.locks.doc(id).update({ claimLimit: 0 }) : Promise.resolve())}
 						/>
 					</div>
 				</div>

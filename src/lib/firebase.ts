@@ -60,8 +60,12 @@ export const handleSignIn = async (userCredential: UserCredential) => {
 		return user
 			.getIdToken(true)
 			.then(setToken)
-			.then(() => (window.location.href = '/home'));
+			.then(() => (window.location.href = '/home'))
+			.catch((ex) => {
+				console.error('Error during sign-in token exchange:', ex);
+			});
 	}
+	return Promise.resolve();
 };
 
 export const signOut = () => {

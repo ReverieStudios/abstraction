@@ -18,6 +18,7 @@
 	export let data: (text: string, id?: string) => Object = (name) => ({ name });
 	export let color = 'primary';
 	export let buttonText = 'Create New';
+	export let afterCreate: (id: string | null) => Promise<any> = null;
 
 	let text = '';
 	let submitting = false;
@@ -41,7 +42,15 @@
 			}
 
 			return createPromise
-				.then((id) => {
+				.then(async (id) => {
+					try {
+						if (afterCreate) {
+							await afterCreate(id);
+						}
+					} catch (err) {
+						console.error('afterCreate failed', err);
+					}
+
 					clear();
 					dispatch('create', id);
 				})

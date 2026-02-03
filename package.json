@@ -15,7 +15,11 @@
 		"format": "prettier --ignore-path .gitignore --write --plugin-search-dir=. .",
 		"clear-emulator-ports": "lsof -t -i:9099 -i:8080 -i:3001 | xargs --no-run-if-empty kill -9",
 		"emulator": "npm run clear-emulator-ports && firebase emulators:start --only=firestore,auth,storage --import=dev-data --export-on-exit",
-		"smui:build": "smui-theme compile static/smui-dark.css -i src/theme/dark && smui-theme compile static/smui.css -i src/theme"
+		"smui:build": "smui-theme compile static/smui-dark.css -i src/theme/dark && smui-theme compile static/smui.css -i src/theme",
+		"test": "vitest",
+		"test:ui": "vitest --ui",
+		"test:watch": "vitest --watch",
+		"test:e2e": "playwright test"
 	},
     "devDependencies": {
 		"@material/typography": "^14.0.0",
@@ -76,6 +80,14 @@
 		"svelte-check": "^3.4.3",
 		"svelte-forms-lib": "^2.0.1",
 		"svelte-preprocess": "^5.0.3",
+		"vitest": "^1.6.0",
+		"@testing-library/svelte": "^5.0.0",
+		"@testing-library/jest-dom": "^6.0.0",
+		"jsdom": "^21.1.0",
+		"@vitest/ui": "^1.6.0",
+		"@playwright/test": "^1.40.0",
+		"playwright": "^1.40.0",
+		"tslib": "^2.3.1",
 		"tslib": "^2.3.1",
 		"turndown": "^7.1.1",
 		"typescript": "^5.0.0",

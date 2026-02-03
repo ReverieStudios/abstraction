@@ -37,7 +37,7 @@ export const deleteNodeAndChildren = (root: Docs.Decision, nodesByParentId: KeyG
 
 	recursiveDelete(root, nodesByParentId, update, nodesByParentId[root.id] ?? []);
 
-	return database.decisionTree.set(update);
+	return database.decisionTree?.set(update);
 };
 
 export const recursiveDelete = (
@@ -200,14 +200,14 @@ export const updateSelectedNode = (
 	recursiveDelete(selected, nodesByParentId, updateObj, nodesToRemove);
 	addChildren(updateObj, selected, selectedType, childIDsToAdd, nodesById);
 
-	return database.decisionTree.set(updateObj, false);
+	return database.decisionTree?.set(updateObj, false);
 };
 
 export const groupByParentId = (decisions: Docs.Decision[]) =>
 	transform(
 		decisions,
-		(acc, node: Docs.Decision) => {
-			let parentIDs = [];
+		(acc: Record<string, Docs.Decision[]>, node: Docs.Decision) => {
+			let parentIDs: string[] = [];
 			if (isStartNode(node.data)) {
 				parentIDs = node.data.parentIDs;
 			} else if (isAssetNode(node.data)) {

@@ -31,7 +31,7 @@ For Windows, it's a little messier. I highly recommend you follow Microsoft's ad
 - Install Windows Subsystem for Linux (WSL). I recommend installing Ubuntu as your Linux distribution.
 - Install Windows Terminal (an improved command line).
 - Install `nvm` _inside your WSL Linux distribution_.
-- Use `nvm` to install `npm` (in Linux). I recommend Node.js version 18 as that what is Vercel is using.
+- Use `nvm` to install `npm` (in Linux). I recommend Node.js version 20 as that what is Vercel is using.
 - Install VS Code with 
 While this takes some work upfront, it is much easier and more stable to develop inside of Linux (via WSL) than in Windows. 
 All the steps above are covered described in detail in this article from Microsoft:
@@ -44,7 +44,7 @@ VS Code for Windows (integrating with the WSL). VS Code is also available for Li
 
 If you install VS Code, I recommend the following plugins:
 - WSL (if you're using WSL)
-- Remote Development
+- Remote Development (if you're using WSL)
 - HTML CSS Support
 - Svelte Inellisense
 - Svelte for VS Code

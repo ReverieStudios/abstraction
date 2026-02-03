@@ -1,4 +1,4 @@
-export type Decision = Decision.StartNode | Decision.AssetNode;
+export type Decision = Decision.StartNode | Decision.AssetNode | Decision.RelationshipNode;
 
 export namespace Decision {
 	interface DecisionNode {
@@ -36,9 +36,5 @@ export const isAssetNode = (node: Decision): node is Decision.AssetNode => {
 };
 
 export const isRelationshipNode = (node: Decision): node is Decision.RelationshipNode => {
-	return (
-		(node as Decision.RelationshipNode).relationshipOptionIDs !== undefined ||
-		(node as Decision.RelationshipNode).relationshipTypeIDs !== undefined ||
-		(node as Decision.RelationshipNode).connectionSettings !== undefined
-	);
+	return (node as Decision.RelationshipNode).relationshipIDs !== undefined;
 };

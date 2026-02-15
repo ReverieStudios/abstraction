@@ -1,14 +1,15 @@
 import type { Docs } from '.';
 
 export interface Relationship {
-	label: string;
+	name: string;
 	summary?: string;
 	details?: string;
 	type: string; // relationship type id
+    subtype?: string; 
 	image?: string;
 	fields: Relationship.RelationshipFields;
-	size?: number; // tuple size (default 2)
-	capacity?: number | 'unlimited';
+	size: number; 
+	capacity: number;
 }
 
 export namespace Relationship {

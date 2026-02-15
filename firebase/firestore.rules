@@ -30,7 +30,7 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow write: if isOwner(game);
 
-      // assetTypes, decisionTree, flags
+      // assetTypes, relationshipTypes, decisionTree, flags
       match /data/{dataType} {
         allow read: if isSignedIn();
         allow write: if isWriter(game);
@@ -45,6 +45,10 @@ service cloud.firestore {
         allow write: if isOwner(game);
       }
       match /assets/{asset} {
+        allow read: if isSignedIn();
+        allow write: if isWriter(game);
+      }
+      match /relationships/{relationship} {
         allow read: if isSignedIn();
         allow write: if isWriter(game);
       }

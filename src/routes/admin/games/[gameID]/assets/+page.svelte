@@ -12,7 +12,7 @@
 	import RichEditor from '$lib/form/RichEditor.svelte';
 	import { Wrapper, Item } from '$lib/boxLinks';
 	import { slide } from 'svelte/transition';
-	import { groupBy, join } from 'lodash-es';
+	import { groupBy } from 'lodash-es';
 	import { database } from '$lib/database';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';

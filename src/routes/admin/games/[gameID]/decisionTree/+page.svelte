@@ -18,9 +18,9 @@
 
 	$: assetsById = keyBy($assets, 'id');
 	$: nodesById = keyBy($decisionTree, 'id');
-	$: nodesByParentId = groupByParentId($decisionTree);
+	$: nodesByParentId = groupByParentId($decisionTree ?? []);
 
-	const treeLoaded = decisionTree.hasLoaded;
+	const treeLoaded = decisionTree?.hasLoaded;
 
 	const state: Writable<State> = writable({
 		selected: null,
@@ -70,10 +70,10 @@
 
 	$: {
 		if ($treeLoaded) {
-			const hasStartNode = $decisionTree.some((n) => n.id === START_ID);
+			const hasStartNode = $decisionTree?.some((n) => n.id === START_ID);
 			if (!hasStartNode) {
 				console.log('RECREATING START NODE', { nodes: $decisionTree });
-				decisionTree.addDoc({ name: 'Start', treeID: START_ID, parentIDs: [] }, START_ID);
+				decisionTree?.addDoc({ name: 'Start', treeID: START_ID, parentIDs: [] }, START_ID);
 			}
 		}
 	}
@@ -84,7 +84,7 @@
 </svelte:head>
 
 {#if $treeLoaded}
-	<TreeSelect {state} nodes={$decisionTree} {nodesByParentId} />
+	<TreeSelect {state} nodes={$decisionTree ?? []} {nodesByParentId} />
 	<Panel
 		nodes={$decisionTree}
 		{nodesById}
@@ -94,5 +94,5 @@
 		assets={$assets}
 		{state}
 	/>
-	<Graph nodes={$decisionTree} {assetsById} {state} />
+	<Graph nodes={$decisionTree ?? []} {assetsById} {state} />
 {/if}

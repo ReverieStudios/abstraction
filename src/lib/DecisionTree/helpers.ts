@@ -10,7 +10,7 @@ export const TREE_TYPE = 'TREE_TYPE';
 export const START_ID = 'START_NODE';
 
 export interface State {
-	selected: Docs.Decision;
+	selected: Docs.Decision | null;
 	drawTreeID: string;
 }
 

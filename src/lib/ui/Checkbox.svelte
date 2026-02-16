@@ -1,9 +1,9 @@
-<script>
+<script lang="ts">
 	import Checkbox from '@smui/checkbox';
 	import FormField from '@smui/form-field';
 
-	export let label = null;
-	export let checked;
+	export let label: string | null = null;
+	export let checked: boolean;
 </script>
 
 <FormField>

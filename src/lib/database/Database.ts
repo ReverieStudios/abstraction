@@ -16,6 +16,7 @@ import type { User } from './types/User';
 import type { Token } from './types/Token';
 import type { Relationship } from './types/Relationships';
 import type { RelationshipType } from './types/RelationshipTypes';
+import type { RelationshipSelector } from './types/RelationshipSelectors';
 
 interface Database {
 	games: Collection<Game>;
@@ -32,6 +33,7 @@ interface Database {
 	decisionTree?: DocumentMap<Decision> | null;
 	relationships?: Collection<Relationship> | null;
 	relationshipTypes?: DocumentMap<RelationshipType> | null;
+	relationshipSelectors?: Collection<RelationshipSelector> | null;
 
 	favorites?: CollectionDocument<Favorites> | null;
 	allFavorites?: Collection<Favorites> | null;
@@ -75,7 +77,8 @@ const updateDatabase = () => {
 		? new Collection(`games/${gameID}/relationships`, { sortBy: 'name', cacheField: 'lastUpdated' })
 		: null;
 	database.relationshipTypes = gameID ? new DocumentMap(`games/${gameID}/data/relationshipTypes`, 'name') : null;
-
+	database.relationshipSelectors = gameID ? new Collection(`games/${gameID}/relationshipSelectors`, { sortBy: 'name', cacheField: 'lastUpdated' }) : null;
+	
 	database.favoriteCounts = gameID
 		? new CollectionDocument(`games/${gameID}/data/favorites`)
 		: null;

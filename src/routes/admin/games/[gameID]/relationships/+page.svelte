@@ -227,7 +227,7 @@
 	</Modal>
 
 	<hr />
-	<Wrapper items={$relationshipTypes} let:item={type}>
+	<Wrapper items={$relationshipTypes ?? []} let:item={type}>
 		<Item>
 			<a href={typeId !== type.id ? getUrl(type.id) : getUrl()} class="h3 fill block">
 				{type.data.name} ({relationshipsByType?.[type.id]?.length ?? 0})

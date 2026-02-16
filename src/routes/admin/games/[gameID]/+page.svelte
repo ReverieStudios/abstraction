@@ -32,6 +32,11 @@
 			info: 'Manage the categories for relationships between characters and define their fields'
 		},
 		{
+			text: 'Relationship Selectors',
+			href: `/admin/games/${gameID}/relationshipSelectors`,
+			info: 'Manage how relationships are assigned to characters'
+		},
+		{
 			text: 'Characters',
 			href: `/admin/games/${gameID}/characters`,
 			info: 'View and manage the characters in the game'

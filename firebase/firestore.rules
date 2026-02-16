@@ -52,6 +52,10 @@ service cloud.firestore {
         allow read: if isSignedIn();
         allow write: if isWriter(game);
       }
+      match /relationshipSelectors/{relationshipSelector} {
+        allow read: if isSignedIn();
+        allow write: if isWriter(game);
+      }
       match /favorites/{user} {
         allow read: if isUser(user) || isWriter(game);
         allow write: if false;

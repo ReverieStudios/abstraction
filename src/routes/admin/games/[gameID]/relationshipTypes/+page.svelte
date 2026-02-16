@@ -33,7 +33,6 @@
 	const fieldTypes = [
 		{ text: 'Plaintext', value: 'plain' },
 		{ text: 'Richtext', value: 'markdown' },
-		{ text: 'Participant Name', value: 'participant_name' }
 	];
 
 	const updateType = async (value: RelationshipType) => {

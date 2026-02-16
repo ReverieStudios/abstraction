@@ -3,7 +3,6 @@ import type { Docs } from '.';
 export interface Relationship {
 	name: string;
 	summary?: string;
-	details?: string;
 	type: string; // relationship type id
     subtype?: string; 
 	image?: string;

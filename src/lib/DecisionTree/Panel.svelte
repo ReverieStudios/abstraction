@@ -47,7 +47,7 @@
 
 	$: selectItems = [
 		{ text: 'Trees', value: { type: TREE_TYPE } },
-		...assetTypes.flatMap((type) => {
+		...(assetTypes ?? []).flatMap((type) => {
 			let subgroups: {text: string, value: {type: string, subtype:string}}[] = [];
 			if (type.data.parentTypeID) {
 				const assetsOfType = assets?.filter((asset) => asset.data.type === type.data.parentTypeID) ?? [];
@@ -205,7 +205,7 @@
 				?.filter((node) => !allParentIDs.has(node.id))
 				.map((n) => n.id);
 
-			nextTreeNode.update({ parentIDs: [...openEnds, ...getParent(nextTreeNode)] });
+			nextTreeNode.update({ parentIDs: [...(openEnds ?? []), ...getParent(nextTreeNode)] });
 		}
 		nextTreeValue = '';
 	};

@@ -7,7 +7,7 @@
 	import Modal from '$lib/ui/Modal.svelte';
 	import { groupBy, keyBy } from 'lodash-es';
 	import { isAssetNode, isStartNode, isRelationshipNode, type Decision } from '$lib/database/types/Decision';
-	import { getNodeName, TREE_TYPE, updateSelectedNode } from './helpers';
+	import { getNodeName, RELATIONSHIP_TYPE, TREE_TYPE, updateSelectedNode } from './helpers';
 	import type { Docs, KeyMaps, KeyGroups } from '$lib/database/types';
 	import type { State } from './helpers';
 	import type { Writable } from 'svelte/store';
@@ -18,12 +18,14 @@
 	import SimpleList from '$lib/form/SimpleList.svelte';
 	import ConfirmButton from '$lib/ConfirmButton.svelte';
 	import ChildCondition from './ChildCondition.svelte';
-	import RelationshipEditor from './RelationshipEditor.svelte';
+
 	export let state: Writable<State>;
 	export let nodes: Docs.Decision[] | null | undefined;
 	export let assetTypes: Docs.AssetType[] | null | undefined;
 	export let assets: Docs.Asset[] | null | undefined;
+	export let relationshipSelectors: Docs.RelationshipSelector[] | null | undefined;
 	export let assetsById: KeyMaps.Asset | null | undefined;
+	export let relationshipSelectorsById: KeyMaps.RelationshipSelector | null | undefined;
 	export let nodesById: KeyMaps.Decision | null | undefined;
 	export let nodesByParentId: KeyGroups.Decision | null | undefined;
 
@@ -36,6 +38,7 @@
 		if (selected !== $state.selected) {
 			selected = $state.selected;
 			activeTab = tabs[0];
+			selectedType = null;
 		}
 	}
 
@@ -47,6 +50,7 @@
 
 	$: selectItems = [
 		{ text: 'Trees', value: { type: TREE_TYPE } },
+		{ text: 'Relationships', value: { type: RELATIONSHIP_TYPE } },
 		...(assetTypes ?? []).flatMap((type) => {
 			let subgroups: {text: string, value: {type: string, subtype:string}}[] = [];
 			if (type.data.parentTypeID) {
@@ -64,7 +68,7 @@
 
 	$: treeOptions = startNodes
 		?.map((node) => ({
-			text: assetsById ? getNodeName(node, assetsById) : "",
+			text: assetsById && relationshipSelectorsById ? getNodeName(node, assetsById, relationshipSelectorsById) : "",
 			value: node.id
 		}))
 		.filter((opt) => opt.value !== $state.drawTreeID)
@@ -80,7 +84,9 @@
 				if (childNode) {
 					if (isStartNode(childNode.data)) {
 						selectedType = { type: TREE_TYPE };
-					} else if (isAssetNode(childNode.data)) {
+					} else if (isRelationshipNode(childNode.data)) {
+                    	selectedType = { type: RELATIONSHIP_TYPE };
+                	} else if (isAssetNode(childNode.data)) {
 						const asset = assetsById?.[childNode.data.assetID] ?? null;
 						selectedType = asset?.data?.type ? { type: asset?.data?.type } : null;
 					}
@@ -104,7 +110,7 @@
 		} else if (selectedType.type === TREE_TYPE) {
 			selectableChildren = startNodes
 				?.map((node) => ({
-					label: assetsById ? getNodeName(node, assetsById) : "",
+					label: assetsById && relationshipSelectorsById ? getNodeName(node, assetsById, relationshipSelectorsById) : "",
 					value: node.id
 				}))
 				.filter((opt) => opt.value !== selected?.data.treeID && opt.label !== "")
@@ -114,7 +120,28 @@
 				(node) => node && isStartNode(node.data) ? node.id : null
 			)[0] : null;
 			selectedChildConditions = selected?.data.childConditions ?? null;
-		} else if (selectedType?.subtype) {
+		} else if (selectedType?.type === RELATIONSHIP_TYPE) {
+			selectableChildren = (relationshipSelectors ?? [])
+				.map((selector) => ({
+					label: selector.data.name,
+					value: selector.id
+				}))
+				.sort(sortChildren);
+			selectedChildren = selected?.id ? (nodesByParentId?.[selected.id] ?? [])
+				.map((node) => {
+					if (node && isRelationshipNode(node.data)) {
+						const selector = relationshipSelectorsById?.[node.data.relationshipSelectorId];
+						if (selector) {
+							return selector.id;
+						} else {
+							return null;
+						}
+					}
+				})
+				.filter((id): id is string => id !== null)
+				.filter(Boolean) : null;
+			selectedChildConditions = selected?.data.childConditions ?? null;
+		}else if (selectedType?.subtype) {
 			selectableChildren = (assetsByType[selectedType.type] ?? [])
 				.filter((asset) => asset.data.subtype === selectedType?.subtype)
 				.map((asset) => ({
@@ -189,7 +216,7 @@
 	const getParent = (node: Docs.Decision): string[] => {
 		if (isStartNode(node.data)) {
 			return node.data.parentIDs ?? [];
-		} else if (isAssetNode(node.data)) {
+		} else if (isAssetNode(node.data) || isRelationshipNode(node.data)) {
 			return node.data.parentID ? [node.data.parentID] : [];
 		}
 		return [];
@@ -217,9 +244,6 @@
 
 {#if selected}
 	<Modal open on:close={unsetSelected}>
-		{#if isRelationshipNode(selected.data)}
-			<RelationshipEditor node={selected} />
-		{/if}
 		{#if isAssetNode(selected.data)}
 			<TabBar {tabs} class="mb2" let:tab bind:active={activeTab}>
 				<Tab {tab}>
@@ -232,7 +256,7 @@
 				initialValues={{
 					children: selectedChildren,
 					loops: initialLoops(selected),
-					childConditions: selectedChildConditions
+					childConditions: selectedChildConditions,
 				}}
 				onSubmit={updateNode}
 				afterSubmit={unsetSelected}
@@ -241,17 +265,31 @@
 					{#if isStartNode(selected.data)}
 						<Autocomplete name="loops" label="Loops through tree" items={usedVariables} />
 					{/if}
+
 					Next Choices:
 					<Select label="Type" items={selectItems} bind:value={selectedType} />
 					{#if selectableChildren}
 						{#if selectedType?.type === TREE_TYPE}
-							<RadioGroup label="Trees:" name="children" items={selectableChildren} />
+							<RadioGroup label="Trees:" name="children" items={selectableChildren ?? []} />
+						
+						{:else if selectedType?.type === RELATIONSHIP_TYPE}
+							<CheckBoxGroup
+								all
+								label="Relationship Selectors:"
+								name="children"
+								items={selectableChildren ?? []}
+							>
+								<ChildCondition
+								let:id
+								let:checked
+								slot="extra" name="childConditions.{id}" {checked} />
+							</CheckBoxGroup>
 						{:else}
 							<CheckBoxGroup
 								all
 								label="Assets:"
 								name="children"
-								items={selectableChildren}
+								items={selectableChildren ?? []}
 							>
 								<ChildCondition 
 								let:id
@@ -296,5 +334,6 @@
 		label="Tree"
 		bind:value={nextTreeValue}
 		on:change={assignOpenNodes}
+		on:click={assignOpenNodes}
 	/>
 </div>

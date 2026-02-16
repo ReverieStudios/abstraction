@@ -1,4 +1,4 @@
-import { isStartNode, isAssetNode } from '$lib/database/types/Decision';
+import { isStartNode, isAssetNode, isRelationshipNode } from '$lib/database/types/Decision';
 import { store, generateID } from '$lib/firebase';
 import { database } from '$lib/database';
 import type { KeyGroups, Docs, KeyMaps } from '$lib/database/types';
@@ -7,6 +7,7 @@ import type { FieldValue } from 'firebase/firestore';
 import { transform } from 'lodash-es';
 
 export const TREE_TYPE = 'TREE_TYPE';
+export const RELATIONSHIP_TYPE = 'RELATIONSHIP_TYPE';
 export const START_ID = 'START_NODE';
 
 export interface State {
@@ -68,6 +69,9 @@ export const recursiveDelete = (
 					false
 				);
 			}
+		} else if (isAssetNode(childDoc.data) || isRelationshipNode(childDoc.data)) {
+			updateObj[childDoc.id] = store.fieldValues.delete();
+			recursiveDelete(childDoc, nodesByParentId, updateObj, nodesByParentId[childDoc.id] ?? [], false);
 		} else if (isAssetNode(childDoc.data)) {
 			updateObj[childDoc.id] = store.fieldValues.delete();
 			recursiveDelete(
@@ -81,11 +85,14 @@ export const recursiveDelete = (
 	});
 };
 
-export const getNodeName = (node: TreeNode, assetMap: KeyMaps.Asset) => {
+export const getNodeName = (node: TreeNode, assetMap: KeyMaps.Asset, relationSelectorMap: KeyMaps.RelationshipSelector) => {
 	if (isExitNode(node)) {
 		return node.name;
 	} else if (isStartNode(node.data)) {
 		return node.data.name;
+	} else if (isRelationshipNode(node.data)) { 
+		const selectorID = node.data.relationshipSelectorId;
+		return relationSelectorMap?.[selectorID]?.data?.name ?? 'Loading';
 	} else if (isAssetNode(node.data)) {
 		const assetID = node.data.assetID;
 		return assetMap?.[assetID]?.data?.name ?? 'Loading';
@@ -98,6 +105,8 @@ const getChildType = (children: Docs.Decision[], assetsByID: KeyMaps.Asset) => {
 	if (child) {
 		if (isStartNode(child.data)) {
 			return TREE_TYPE;
+		} else if (isRelationshipNode(child.data)) {
+			return RELATIONSHIP_TYPE;
 		} else if (isAssetNode(child.data)) {
 			const asset = assetsByID[child.data.assetID];
 			return asset?.data?.type;
@@ -110,7 +119,7 @@ const addChildren = (
 	parent: Docs.Decision,
 	selectedType: string,
 	newChildIDs: string[],
-	nodesById: KeyMaps.Decision
+	nodesById: KeyMaps.Decision,
 ) => {
 	const treeID = parent.data.treeID;
 	if (selectedType === TREE_TYPE) {
@@ -123,7 +132,17 @@ const addChildren = (
 				};
 			}
 		});
-	} else {
+		} else if (selectedType === RELATIONSHIP_TYPE) {
+			newChildIDs.forEach((selectorID) => {
+				const newNode: Decision.RelationshipNode = {
+					relationshipSelectorId: selectorID,
+					parentID: parent.id,
+					treeID
+			};
+			updateObj[generateID()] = newNode;
+		});
+    }
+	else {
 		newChildIDs.forEach((assetID) => {
 			const newNode: Decision.AssetNode = {
 				assetID,
@@ -143,7 +162,7 @@ export const updateSelectedNode = (
 	selectedType: string,
 	nodesById: KeyMaps.Decision,
 	nodesByParentId: KeyGroups.Decision,
-	assetsByID: KeyMaps.Asset
+	assetsByID: KeyMaps.Asset,
 ) => {
 	// get current type
 	const currentChildNodes = nodesByParentId[selected.id] ?? [];
@@ -182,6 +201,8 @@ export const updateSelectedNode = (
 				.map((node) => {
 					if (isAssetNode(node.data)) {
 						return node.data.assetID;
+					} else if (isRelationshipNode(node.data)) {
+						return node.data.relationshipSelectorId;
 					}
 				})
 				.filter(Boolean)
@@ -190,6 +211,8 @@ export const updateSelectedNode = (
 		nodesToRemove = currentChildNodes.filter((node) => {
 			if (isAssetNode(node.data)) {
 				return !newChildIdSet.has(node.data.assetID);
+			} else if (isRelationshipNode(node.data)) {
+				return !newChildIdSet.has(node.data.relationshipSelectorId);
 			} else {
 				// shouldn't really happen
 				return true;
@@ -198,7 +221,13 @@ export const updateSelectedNode = (
 		childIDsToAdd = newChildIDs.filter((id) => !currentChildIdSet.has(id));
 	}
 	recursiveDelete(selected, nodesByParentId, updateObj, nodesToRemove);
-	addChildren(updateObj, selected, selectedType, childIDsToAdd, nodesById);
+	addChildren(
+		updateObj,
+		selected,
+		selectedType,
+		childIDsToAdd,
+		nodesById
+	);
 
 	return database.decisionTree?.set(updateObj, false);
 };
@@ -210,7 +239,7 @@ export const groupByParentId = (decisions: Docs.Decision[]) =>
 			let parentIDs: string[] = [];
 			if (isStartNode(node.data)) {
 				parentIDs = node.data.parentIDs;
-			} else if (isAssetNode(node.data)) {
+			} else if (isAssetNode(node.data) || isRelationshipNode(node.data)) {
 				parentIDs = [node.data.parentID];
 			}
 

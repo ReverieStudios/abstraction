@@ -14,10 +14,12 @@
 	const game: Game = $page.data.game;
 	export let assets = database.assets;
 	export let assetTypes = database.assetTypes;
+	export let relationshipSelectors = database.relationshipSelectors;
 	export let decisionTree = database.decisionTree;
 
 	$: assetsById = keyBy($assets, 'id');
 	$: nodesById = keyBy($decisionTree, 'id');
+	$: relationshipSelectorsById = keyBy($relationshipSelectors, 'id');
 	$: nodesByParentId = groupByParentId($decisionTree ?? []);
 
 	const treeLoaded = decisionTree?.hasLoaded;
@@ -92,7 +94,9 @@
 		{nodesByParentId}
 		assetTypes={$assetTypes}
 		assets={$assets}
+		relationshipSelectors={$relationshipSelectors}
+		{relationshipSelectorsById}
 		{state}
 	/>
-	<Graph nodes={$decisionTree ?? []} {assetsById} {state} />
+	<Graph nodes={$decisionTree ?? []} {assetsById} {relationshipSelectorsById} {state} />
 {/if}

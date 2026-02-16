@@ -21,8 +21,8 @@ export namespace Decision {
 	}
 
 	export interface RelationshipNode extends DecisionNode {
+		relationshipSelectorId: string;
 		parentID: string;
-		relationshipIDs: string[];
 		setVariables?: Variable[];
 	}
 }
@@ -36,5 +36,5 @@ export const isAssetNode = (node: Decision): node is Decision.AssetNode => {
 };
 
 export const isRelationshipNode = (node: Decision): node is Decision.RelationshipNode => {
-	return (node as Decision.RelationshipNode).relationshipIDs !== undefined;
+	return (node as Decision.RelationshipNode).relationshipSelectorId !== undefined;
 };

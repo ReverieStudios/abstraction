@@ -1,17 +1,20 @@
 <script lang="ts">
 	import { database } from '$lib/database';
+	import type { Docs } from '$lib/database';
 	import type { User } from '$lib/database/types/User';
-	import { keyBy, sortBy } from 'lodash-es';
-	const assetsById = derived(database.assets, ($assets) => {
+	import { keyBy } from 'lodash-es';
+	import { derived, type Readable } from 'svelte/store';
+	import AssetRow from './AssetRow.svelte';
+	import type { Dictionary } from 'lodash';
+
+	const assetsById: Readable<Dictionary<Docs.Asset>> = derived(database.assets, ($assets) => {
 		return keyBy($assets, 'id');
 	});
 
-	import { derived } from 'svelte/store';
-	import AssetRow from './AssetRow.svelte';
 
-	export let gameID: string;
-	export let userID: string;
-	export let user: User;
+	export let gameID: string | null;
+	export let userID: string | null;
+	export let user: User | null;
 	export let assetIDs: string[];
 	export let chosenID: string | null = null;
 	export let subselection: {
@@ -28,11 +31,11 @@
 		loopDepth: 1
 	};
 
-	export let choose: (assetID: string) => void = null;
-	export let unchoose: () => void = null;
+	export let choose: ((assetID: string) => void) | null = null;
+	export let unchoose: (() => void) | null = null;
 	const favorites = database.favorites;
 
-	const assets = derived(
+	const assets: Readable<Docs.Asset[]> = derived(
 	[assetsById, favorites],
 	([$assetsById, $favorites]) => {
 		const assets = assetIDs.map((id) => $assetsById?.[id]).filter(Boolean);
@@ -47,9 +50,9 @@
 		}
 	);
 
-	const assetHeader = derived([assetsById, database.assetTypes], ([$assetsById, $assetTypes]) => {
+	const assetHeader: Readable<{ header: string; subheader: string }> = derived([assetsById, database.assetTypes], ([$assetsById, $assetTypes]) => {
 		const typeID = $assetsById[assetIDs[0]]?.data?.type;
-		const type = $assetTypes.find((t) => t.id === typeID);
+		const type = $assetTypes.find((t: Docs.AssetType) => t.id === typeID);
 		if (type?.data?.name) {
 			return {
 				header: type.data.name,

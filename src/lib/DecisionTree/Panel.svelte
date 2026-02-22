@@ -130,7 +130,7 @@
 			selectedChildren = selected?.id ? (nodesByParentId?.[selected.id] ?? [])
 				.map((node) => {
 					if (node && isRelationshipNode(node.data)) {
-						const selector = relationshipSelectorsById?.[node.data.relationshipSelectorId];
+						const selector = relationshipSelectorsById?.[node.data.relationshipSelectorID];
 						if (selector) {
 							return selector.id;
 						} else {

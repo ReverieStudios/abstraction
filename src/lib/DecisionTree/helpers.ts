@@ -91,7 +91,7 @@ export const getNodeName = (node: TreeNode, assetMap: KeyMaps.Asset, relationSel
 	} else if (isStartNode(node.data)) {
 		return node.data.name;
 	} else if (isRelationshipNode(node.data)) { 
-		const selectorID = node.data.relationshipSelectorId;
+		const selectorID = node.data.relationshipSelectorID;
 		return relationSelectorMap?.[selectorID]?.data?.name ?? 'Loading';
 	} else if (isAssetNode(node.data)) {
 		const assetID = node.data.assetID;
@@ -135,7 +135,7 @@ const addChildren = (
 		} else if (selectedType === RELATIONSHIP_TYPE) {
 			newChildIDs.forEach((selectorID) => {
 				const newNode: Decision.RelationshipNode = {
-					relationshipSelectorId: selectorID,
+					relationshipSelectorID: selectorID,
 					parentID: parent.id,
 					treeID
 			};
@@ -202,7 +202,7 @@ export const updateSelectedNode = (
 					if (isAssetNode(node.data)) {
 						return node.data.assetID;
 					} else if (isRelationshipNode(node.data)) {
-						return node.data.relationshipSelectorId;
+						return node.data.relationshipSelectorID;
 					}
 				})
 				.filter(Boolean)
@@ -212,7 +212,7 @@ export const updateSelectedNode = (
 			if (isAssetNode(node.data)) {
 				return !newChildIdSet.has(node.data.assetID);
 			} else if (isRelationshipNode(node.data)) {
-				return !newChildIdSet.has(node.data.relationshipSelectorId);
+				return !newChildIdSet.has(node.data.relationshipSelectorID);
 			} else {
 				// shouldn't really happen
 				return true;
@@ -232,9 +232,9 @@ export const updateSelectedNode = (
 	return database.decisionTree?.set(updateObj, false);
 };
 
-export const groupByParentId = (decisions: Docs.Decision[]) =>
+export const groupByParentId = (decisions: Docs.Decision[] | null | undefined) =>
 	transform(
-		decisions,
+		decisions ?? [],
 		(acc: Record<string, Docs.Decision[]>, node: Docs.Decision) => {
 			let parentIDs: string[] = [];
 			if (isStartNode(node.data)) {

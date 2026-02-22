@@ -2,7 +2,7 @@
 	import { database } from '$lib/database';
 	import { slide } from 'svelte/transition';
 	import { groupByParentId, START_ID } from '$lib/DecisionTree/helpers';
-	import { isAssetNode, isStartNode } from '$lib/database/types/Decision';
+	import { isAssetNode, isRelationshipNode, isStartNode } from '$lib/database/types/Decision';
 	import type { KeyGroups, KeyMaps } from '$lib/database/types';
 	import type { Readable } from 'svelte/store';
 	import Button from '$lib/ui/Button.svelte';
@@ -13,21 +13,21 @@
 	import { dev } from '$app/environment';
 	import CartSidebar from 'lib/CartSidebar.svelte';
 
-	export let gameName: string = null;
-	export let gameID: string = null;
-	export let userID: string = null;
-	export let user: User = null;
+	export let gameName: string | null = null;
+	export let gameID: string | null = null;
+	export let userID: string | null = null;
+	export let user: User | null = null;
 	export let chosenAssets: Readable<string[]>;
 	export let secureLock: (assetID: string, depth: number) => Promise<boolean>;
 	export let releaseLocks: (assetIDs: string[]) => Promise<boolean>;
-	export let finalize: () => Promise<boolean> = null;
+	export let finalize: (() => Promise<boolean>) | null = null;
 
 	let decisionTree = database.decisionTree;
 
 	$: nodesByParentId = groupByParentId($decisionTree) as KeyGroups.Decision;
 	$: nodesById = keyBy($decisionTree, 'id') as KeyMaps.Decision;
 	$: allVariables = Array.from(
-		$decisionTree.reduce((acc, node) => {
+		($decisionTree ?? []).reduce((acc, node) => {
 			const vars = isAssetNode(node.data) ? node.data?.setVariables?.map((v) => v.name) ?? [] : [];
 			vars.forEach((v) => acc.add(v));
 			return acc;
@@ -53,7 +53,7 @@
 	};
 
 	const getVariableProcessor = (chosenIDs: string[]) => {
-		const variables = chosenIDs.reduce((acc, id) => {
+		const variables = chosenIDs.reduce((acc: Record<string, string | number>, id) => {
 			const node = nodesById[id];
 			if (node && isAssetNode(node.data)) {
 				(node.data.setVariables ?? []).forEach((variable) => {
@@ -106,9 +106,17 @@
 			if (isStartNode(node.data)) {
 				return true;
 			}
-			return (
+			if (isAssetNode(node.data)) {
+				return (
 				!childConditions[node.data.assetID] || variableProcessor(childConditions[node.data.assetID])
 			);
+			}
+			if (isRelationshipNode(node.data)) {
+				return (
+					!childConditions[node.data.relationshipSelectorID] ||
+					variableProcessor(childConditions[node.data.relationshipSelectorID])
+				);
+			};
 		});
 
 		if (children.length === 0) {
@@ -191,8 +199,8 @@
 		const newList: ListItem[] = [];
 		const chosenIDs: string[] = [];
 
-		let pointer: string = START_ID;
-		let loops: MultiSelect = null;
+		let pointer: string | null | undefined = START_ID;
+		let loops: MultiSelect | null = null;
 		while (pointer) {
 			const nextNodes = getAssetChildren(nodesByParentId, pointer, chosenIDs);
 			if (loops === null) {
@@ -206,7 +214,7 @@
 					prior: []
 				};
 			}
-			const remainingOptions = getRemainingOptions(loops).join('--');
+			const remainingOptions: string = getRemainingOptions(loops).join('--');
 			const assetChoices = nextNodes.children.filter((child) =>
 				remainingOptions.includes(child.decisionID)
 			);

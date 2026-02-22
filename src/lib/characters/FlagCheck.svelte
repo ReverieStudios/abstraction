@@ -4,19 +4,20 @@
 	import Icon from '$lib/ui/Icon.svelte';
 	import Tooltip from '$lib/ui/Tooltip.svelte';
 
-	export let gameID: string;
-	export let user: User;
-	export let requirements: string[];
-	export let limitations: string[];
+	export let gameID: string | null;
+	export let user: User | null;
+	export let requirements: string[] | undefined;
+	export let limitations: string[] | undefined;
 
-	const validateFlags = (flags: string[], allFlags: Docs.Flag[]) => {
-		if (!Array.isArray(flags)) {
+	const validateFlags = (flags: string[] | undefined, allFlags: Docs.Flag[] | null | undefined
+	) => {
+		if (!Array.isArray(flags) || !allFlags) {
 			return null;
 		}
 		return flags.filter((flagID) => allFlags.some((flag) => flag.id === flagID));
 	};
-	const getFlagName = (flagID: string, allFlags: Docs.Flag[]) => {
-		return allFlags.find((flag) => flag.id === flagID)?.data?.name;
+	const getFlagName = (flagID: string, allFlags: Docs.Flag[] | null | undefined) => {
+		return (allFlags ?? []).find((flag) => flag.id === flagID)?.data?.name;
 	};
 
 	const flags = database.flags;
@@ -26,7 +27,7 @@
 	};
 	$: anyFlags = (validated?.requirements?.length ?? 0) + (validated?.limitations?.length ?? 0) > 0;
 
-	$: userFlags = user?.flags?.[gameID] ?? [];
+	$: userFlags = user?.flags?.[gameID ?? ""] ?? [];
 
 	$: meetsRequired = (validated?.requirements ?? []).some((flagID) => userFlags?.includes(flagID));
 	$: meetsLimited = (validated?.limitations ?? []).every((flagID) => !userFlags?.includes(flagID));

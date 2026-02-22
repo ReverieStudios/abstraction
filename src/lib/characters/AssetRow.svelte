@@ -10,7 +10,7 @@
 	import LockIcon from './LockIcon.svelte';
 	import RichViewer from '$lib/ui/RichViewer.svelte';
 	import IconButton from 'lib/ui/IconButton.svelte';
-	import { derived } from 'svelte/store';
+	import { derived, type Readable } from 'svelte/store';
 	import FavoriteIcon from './FavoriteIcon.svelte';
 	import { Lock, isPurchased } from '$lib/database/types/Lock';
 	import { storage } from '$lib/firebase';
@@ -22,28 +22,28 @@
 	import SmuiIconButton, { Icon } from '@smui/icon-button';
 	import { afterUpdate, tick } from 'svelte';
 
-	export let gameID: string;
-	export let userID: string;
-	export let user: User;
-	export let asset: Docs.Asset;
+	export let gameID: string | null;
+	export let userID: string | null;
+	export let user: User | null;
+	export let asset: Docs.Asset | null;
 	export let isChosen: boolean = false;
 
-	export let choose: () => void = null;
-	export let unchoose: () => void = null;
+	export let choose: (() => void) | null = null;
+	export let unchoose: (() => void) | null = null;
 
-	const assetLock = database.locks?.doc(asset.id);
+	const assetLock = database.locks?.doc(asset?.id ?? "");
 	$: requirements = $assetLock?.data?.requirements;
 	$: limitations = $assetLock?.data?.limitations;
 
-	const lockStatus = derived(assetLock, (lock) => {
+	const lockStatus: Readable<Lock.Status> = derived(assetLock, (lock) => {
 		const limit = lock?.data?.claimLimit ?? 0;
 		const claims = lock?.data?.claims ?? [];
 		const queue = lock?.data?.claimsQueue ?? [];
 		if (!limit) {
 			return Lock.Status.None;
-		} else if (claims.some((lock) => lock.purchaser === userID)) {
+		} else if (claims.some((lock: Lock.Claim) => lock.purchaser === userID)) {
 			return Lock.Status.PlayerClaimed;
-		} else if (claims.length >= limit && claims.every((lock) => isPurchased(lock))) {
+		} else if (claims.length >= limit && claims.every((lock: Lock.Claim) => isPurchased(lock))) {
 			return Lock.Status.Unavailable;
 		} else if (queue.includes(userID)) {
 			return Lock.Status.PlayerQueued;
@@ -56,9 +56,9 @@
 
 	let inspecting = false;
 
-	const assetType = derived(assetTypes, (types) => {
-		const typeId = asset.data?.type;
-		return (types ?? []).find((type) => type.id === typeId);
+	const assetType: Readable<Docs.AssetType | null> = derived(assetTypes, (types) => {
+		const typeId = asset?.data?.type;
+		return (types ?? []).find((type: Docs.AssetType) => type.id === typeId);
 	});
 
 	const fields = derived(assetType, (type) => {
@@ -68,18 +68,18 @@
 		return getFields(asset, type, false);
 	})
 
-	const summmaryField = derived(assetType, (type) => {
+	const summmaryField: Readable<{label: string; text: string; type: string; showAfterChosen: boolean} | null> = derived(assetType, (type) => {
 		if (!type) {
-			return [];
+			return null;
 		}
-		return asset.data.summary ? getFields(asset, type, false)[0] : null;
+		return asset?.data.summary ? getFields(asset, type, false)[0] : null;
 	});
 
 	const extraFields = derived(assetType, (type) => {
 		if (!type) {
 			return [];
 		}
-		const sliceAmount = asset.data.summary ? 1 : 0;
+		const sliceAmount = asset?.data.summary ? 1 : 0;
 
 		return getFields(asset, type, false).slice(sliceAmount);
 	});
@@ -118,24 +118,24 @@
 	}
 </script>
 
-<div class="flex items-start p2" out:slide|global data-showing bind:this={rowEl} id={"asset-" + asset.id}>
+<div class="flex items-start p2" out:slide|global data-showing bind:this={rowEl} id={"asset-" + asset?.id}>
 	{#if !isChosen}
-		<span class="flex-auto flex flex-column" id={"asset-" + asset.id}>
+		<span class="flex-auto flex flex-column" id={"asset-" + asset?.id}>
 			<span class="h3 flex items-center g1">
 				<LockIcon {lockStatus} {asset} />
-				{#if asset.data.image}
+				{#if asset?.data?.image}
 					{#await storage.getDownloadURL(asset.data.image) then url}
 						<div class="image" style="background-image:url({url})" />
 					{/await}
 				{/if}
-				{asset.data.name}
+				{asset?.data?.name}
 				<FlagCheck {gameID} {user} {requirements} {limitations} />
 
 				<div class="ml-auto flex items-center g1">
-					<Tooltip rich text="Mark '{asset.data.name}' as a favorite">
-						<FavoriteIcon assetID={asset.id} {gameID}  on:favorited={scrollToSelf} />
+					<Tooltip rich text="Mark '{asset?.data?.name}' as a favorite">
+						<FavoriteIcon assetID={asset?.id ?? null} {gameID}  on:favorited={scrollToSelf} />
 					</Tooltip>
-					<Tooltip rich text="Add '{asset.data.name}'">
+					<Tooltip rich text="Add '{asset?.data?.name}'">
 						<IconButton icon="add_shopping_cart" on:click={choose} />
 					</Tooltip>
 				</div>
@@ -218,12 +218,12 @@
 			</div>
 		</span>
 	{:else}
-		<div class="flex-auto flex flex-column" id={"asset-" + asset.id}>
+		<div class="flex-auto flex flex-column" id={"asset-" + asset?.id}>
 			<div class="h3 flex items-center">
 				<LockIcon {lockStatus} {asset} />
-				{asset.data.name}
+				{asset?.data?.name}
 				<div class="ml-auto flex items-center g1">
-					<Tooltip rich text="Remove '{asset.data.name}'">
+					<Tooltip rich text="Remove '{asset?.data?.name}'">
 						<IconButton icon="remove_shopping_cart" on:click={unchoose} />
 					</Tooltip>
 				</div>

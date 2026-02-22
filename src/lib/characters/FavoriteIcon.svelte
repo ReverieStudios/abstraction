@@ -3,11 +3,11 @@
 	import { database } from '$lib/database';
 	import { createEventDispatcher } from 'svelte';
 
-	export let assetID: string;
-	export let gameID: string;
+	export let assetID: string | null;
+	export let gameID: string | null;
 	const dispatch = createEventDispatcher();
 	const favorites = database.favorites;
-	$: favorited = $favorites?.data?.[assetID] ?? false;
+	$: favorited = $favorites?.data?.[assetID ?? ""] ?? false;
 
 	const toggleFavorite = async (favorited: boolean) => {
 		const options = {

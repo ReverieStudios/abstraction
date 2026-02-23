@@ -1,7 +1,6 @@
 <script lang="ts">
     import { slide } from 'svelte/transition';
     import RichViewer from '$lib/ui/RichViewer.svelte';
-    import { derived, type Readable } from 'svelte/store';
     import { storage } from '$lib/firebase';
     import type { User } from '$lib/database/types/User';
     import { getFields } from '$lib/database/types/Relationships';

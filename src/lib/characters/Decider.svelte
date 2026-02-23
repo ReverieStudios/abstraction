@@ -3,16 +3,17 @@
 	import { slide } from 'svelte/transition';
 	import { groupByParentId, START_ID } from '$lib/DecisionTree/helpers';
 	import { isAssetNode, isRelationshipNode, isStartNode } from '$lib/database/types/Decision';
-	import type { KeyGroups, KeyMaps } from '$lib/database/types';
-	import type { Readable } from 'svelte/store';
+	import type { Docs, KeyGroups, KeyMaps } from '$lib/database/types';
+	import { derived, type Readable } from 'svelte/store';
 	import Button from '$lib/ui/Button.svelte';
 	import { goto } from '$app/navigation';
 	import AssetSection from './AssetSection.svelte';
-	import RelationshipChooser from './RelationshipChooser.svelte';
+	import RelationshipSection from './RelationshipSection.svelte';
 	import type { User } from '$lib/database/types/User';
 	import { keyBy } from 'lodash-es';
 	import { dev } from '$app/environment';
 	import CartSidebar from 'lib/CartSidebar.svelte';
+	import type { Dictionary } from 'lodash';
 
 	export let gameName: string | null = null;
 	export let gameID: string | null = null;
@@ -24,6 +25,8 @@
 	export let finalize: (() => Promise<boolean>) | null = null;
 
 	let decisionTree = database.decisionTree;
+
+	const selectorsById: Readable<Dictionary<Docs.RelationshipSelector>> = derived(database.relationshipSelectors, ($sels) => keyBy($sels ?? [], 'id'));
 
 	$: nodesByParentId = groupByParentId($decisionTree) as KeyGroups.Decision;
 	$: nodesById = keyBy($decisionTree, 'id') as KeyMaps.Decision;
@@ -231,9 +234,18 @@
 			const assetChoices = nextNodes.children.filter((child) =>
 				remainingOptions.includes(child.decisionID)
 			);
-			const chosen = assetChoices.find(
-				(choice) => choice.assetID === $chosenAssets[newList.length]
-			);
+			const chosen = assetChoices.find((choice) => {
+				const currentChosen = $chosenAssets[newList.length];
+				if (!currentChosen) return false;
+				if (choice.assetID) {
+					return choice.assetID === currentChosen;
+				}
+				if (choice.relationshipSelectorID) {
+					const sel = $selectorsById?.[choice.relationshipSelectorID];
+					return sel?.data?.relationshipIDs?.includes(currentChosen);
+				}
+				return false;
+			});
 			if (chosen) {
 				chosenIDs.push(chosen.decisionID);
 			}
@@ -321,12 +333,15 @@
 						subselection={item.loop}
 					/>
 				{:else}
-					<!-- For relationship nodes, render the RelationshipChooser for the first selector for now -->
-					<RelationshipChooser
+					<!-- For relationship nodes, render a RelationshipSection with one chooser per selector -->
+					<RelationshipSection
 						{gameID}
 						{user}
 						{userID}
-						relationshipSelectorID={item.children[0]}
+						relationshipSelectorIDs={item.children}
+						choose={choose(item.depth)}
+						unchoose={unchoose(item.depth)}
+						subselection={item.loop}
 					/>
 				{/if}
 			</div>

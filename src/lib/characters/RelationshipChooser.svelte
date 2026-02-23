@@ -35,6 +35,7 @@
 	const relationshipSelectors = database.relationshipSelectors;
 
 	const relationshipsById: Readable<Record<string, Docs.Relationship>> = derived(relationships, ($rels) => {
+		console.log('RelationshipChooser: relationships updated', $rels);
 		return keyBy($rels ?? [], 'id');
 	});
 
@@ -83,7 +84,7 @@
                 <IconButton icon="add_shopping_cart" on:click={() => selectedId && choose ? choose(selectedId) : null} />
             </Tooltip>
         {:else}
-            <Tooltip rich text="Remove '{relationship?.data?.name}'">
+            <Tooltip rich text="Remove '{selector?.data?.name }'">
                 <IconButton icon="remove_shopping_cart" on:click={unchoose} />
             </Tooltip>
         {/if}
@@ -93,31 +94,33 @@
             <div class="muted">No relationship selector found.</div>
         {:else}
             <div class="chooser-grid">
-                <div class="list p2 rounded bg-secondary h3">
-                    <h4>Rank Your Choices Here</h4>
-                    <ul>
-                        {#each rankedIds as id, i (id)}
-                        <div animate:flip>
-                            <SortableItem
-                                propItemNumber={i}
-                                bind:propData={rankedIds}
-                                bind:propHoveredItemNumber={numberHoveredItem}
-                            >
-                                <div class="sortable-row" class:classHovered={numberHoveredItem === i} on:click={() => onClickItem(id)}>
-                                    <MoveIcon propSize={12} />
-                                    {$relationshipsById?.[id]?.data?.name ?? id}
-                                </div>
-                            </SortableItem>
-                        </div>
-                        {/each}
-                    </ul>
-                </div>
+				<div class="bg-surface">
+					<div class="p2 rounded bg-secondary h3">
+						<h4>Rank Your Choices Here</h4>
+							{#each rankedIds as id, i (id)}
+							<div animate:flip>
+								<SortableItem
+									propItemNumber={i}
+									bind:propData={rankedIds}
+									bind:propHoveredItemNumber={numberHoveredItem}
+								>
+									<div class="sortable-row" class:classHovered={numberHoveredItem === i} on:click={() => onClickItem(id)}>
+										<MoveIcon propSize={12} />
+										{$relationshipsById?.[id]?.data?.name ?? id}
+									</div>
+								</SortableItem>
+							</div>
+							{/each}
+
+					</div>
+					<div class="p2">You will get {selector?.data?.relationshipsPerCharacter} relationship{selector?.data?.relationshipsPerCharacter > 1 ? 's' : ''} from this group.</div>
+				</div>
 
                 <div class="preview">
                     {#if rankedIds.length === 0}
                         <div class="muted">No relationships available</div>
                     {:else}
-                        <div class="rows rounded bg-surface h3 p2">
+                        <div class="rows rounded bg-secondary-light h3 p2">
 							{#each rankedIds as id (id)}
 								<div class:hidden={id !== selectedId} class:selected={id === selectedId}>
 									<RelationshipRow
@@ -146,8 +149,8 @@
 	.muted { color: var(--muted); padding: 0.5rem; }
 	.hidden { display: none; }
 	.classHovered {
-		background-color: lightblue;
-		color: white;
+		background-color: var(--primary-light);
+		color: var(--on-primary);
 	}
 
 	/* Improve touch dragging: prevent page scroll while interacting with sortable items */

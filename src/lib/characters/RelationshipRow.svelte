@@ -16,42 +16,25 @@
     export let user: User | null;
     export let relationship: Docs.Relationship | null;
     const relationshipTypes = database.relationshipTypes;
-    const relType: Readable<Docs.RelationshipType | null> = derived(relationshipTypes, (types) => {
-        const typeId = relationship?.data?.type;
-        console.log("relationship type is", typeId);
-        return (types ?? []).find((type: Docs.RelationshipType) => type.id === typeId);
-    });
 
-    const fields = derived(relType, (type) => {
-        if (!type) {
-            return [];
-        }
-        return getFields(relationship, type, false);
-    });
+    let relType: Docs.RelationshipType | null = null;
+    $: {
+        const types = $relationshipTypes;
+        relType = types?.find((type: Docs.RelationshipType) => type.id === relationship?.data?.type) ?? null;
+        console.log("relationship type is", relType, "from relationship", relationship?.id, "and all types are", types);
+    }
 
-    const summmaryField: Readable<{label: string; text: string; type: string; showAfterChosen: boolean} | null> = derived(relType, (type) => {
-        if (!type) {
-            return null;
-        }
-        return relationship?.data?.summary ? getFields(relationship, type, false)[0] : null;
-    });
+    let fields = [];
+    $: fields = relType ? getFields(relationship, relType, false) : [];
 
-    const extraFields = derived(relType, (type) => {
-        if (!type) {
-            return [];
-        }
-        const sliceAmount = relationship?.data.summary ? 1 : 0;
+    let summmaryField: {label: string; text: string; type: string; showAfterChosen: boolean} | null = null;
+    $: summmaryField = relType && relationship ? getFields(relationship, relType, false)[0] : null;
 
-        return getFields(relationship, type, false).slice(sliceAmount);
-    });
-
-    const fieldsAfterChosen = derived(fields, (allFields) =>
-        allFields.filter((f) => f.showAfterChosen)
-    );
+    let extraFields: {label: string; text: string; type: string; showAfterChosen: boolean}[] = [];
+    $: extraFields = relType ? getFields(relationship, relType, false).slice(relationship?.data?.summary ? 1 : 0) : [];
 
     let fieldsPanelOpen = false;
-
-    let extraPanelsOpen = $extraFields.length > 0 ? Array($extraFields.length).fill(true) : [];
+    let extraPanelsOpen = extraFields?.length > 0 ? Array(extraFields.length).fill(true) : [];
 
     let rowEl: HTMLElement;
     let pendingScroll = false;
@@ -84,23 +67,23 @@
             {relationship?.data?.name}
         </span>
         <div class="fields">
-            {#if $summmaryField}
+            {#if summmaryField}
                 <div>
-                    {#if $summmaryField.label}<h4 class="h3">{$summmaryField.label}</h4>{/if}
+                    {#if summmaryField?.label}<h4 class="h4">{summmaryField.label}</h4>{/if}
                     <div class="px2">
-                        {#if $summmaryField.type === 'markdown'}
-                            <RichViewer value={$summmaryField.text} />
+                        {#if summmaryField.type === 'markdown'}
+                            <RichViewer value={summmaryField.text} />
                         {:else}
-                            <p>{$summmaryField.text}</p>
+                            <p>{summmaryField.text}</p>
                         {/if}
                     </div>
                 </div>
             {/if}
-            {#if $extraFields.length > 0}
+            {#if extraFields?.length > 0}
                 <div class="accordion-container">
                     <Accordion>
-                        {#if $extraFields.length == 1}
-                            {#each $extraFields as { label, text, type }, i}
+                        {#if extraFields.length == 1}
+                            {#each extraFields as { label, text, type }, i}
                                 <Panel bind:open={fieldsPanelOpen} color="secondary">
                                     <Header>
                                         {#if label}{label}{/if}
@@ -131,7 +114,7 @@
                             </Header>
                             <Content>
                                 <Accordion multiple>
-                                    {#each $extraFields as { label, text, type }, i}
+                                    {#each extraFields as { label, text, type }, i}
                                         <Panel bind:open={extraPanelsOpen[i]} color="secondary">
                                             <Header>
                                                 {#if label}<h4 class="h3">{label}</h4>{/if}
@@ -157,6 +140,10 @@
                         {/if}
                     </Accordion>
                 </div>
+            {/if}
+            <div class="p1 h4">Characters per relationship: {relationship?.data?.size}
+            {#if relationship?.data?.capacity ?? 0 > 0}
+            <br/>{relationship?.data?.capacity} characters at most can have this relationship.
             {/if}
         </div>
     </span>

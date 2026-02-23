@@ -8,6 +8,7 @@
 	import Button from '$lib/ui/Button.svelte';
 	import { goto } from '$app/navigation';
 	import AssetSection from './AssetSection.svelte';
+	import RelationshipChooser from './RelationshipChooser.svelte';
 	import type { User } from '$lib/database/types/User';
 	import { keyBy } from 'lodash-es';
 	import { dev } from '$app/environment';
@@ -74,7 +75,8 @@
 
 	interface DecisionAsset {
 		decisionID: string;
-		assetID: string;
+		assetID?: string;
+		relationshipSelectorID?: string;
 	}
 	const nextIsStartNode = (root: string) => {
 		const decisions = nodesByParentId[root] ?? [];
@@ -165,6 +167,16 @@
 					assetID: decision.data.assetID
 				};
 			}
+			if (
+				isRelationshipNode(decision.data) &&
+				(!childConditions[decision.data.relationshipSelectorID] ||
+					variableProcessor(childConditions[decision.data.relationshipSelectorID]))
+			) {
+				return {
+					decisionID: decision.id,
+					relationshipSelectorID: decision.data.relationshipSelectorID
+				};
+			}
 			return [];
 		});
 
@@ -183,6 +195,7 @@
 		// name: choices[i].name;
 		chosen?: string;
 		children: string[];
+		childType?: 'asset' | 'relationship';
 		loop: { name: string; on: number; total: number; depth: number; loopDepth: number };
 	}
 	let list: ListItem[] = [];
@@ -228,7 +241,8 @@
 				id: `${pointer}-${loops.loops}`,
 				depth: newList.length,
 				chosen: chosen?.assetID,
-				children: assetChoices.map((c) => c.assetID),
+				children: assetChoices.map((c) => c.assetID ?? c.relationshipSelectorID ?? ''),
+				childType: assetChoices.length > 0 && assetChoices[0].relationshipSelectorID ? 'relationship' : 'asset',
 				loop: {
 					name: loops.name,
 					on: loops.total - loops.loops + 1,
@@ -237,6 +251,11 @@
 					loopDepth: loops.prior.length % loops.depth
 				}
 			});
+				console.log('Decider: added list item', {
+					id: `${pointer}-${loops.loops}`,
+					childCount: assetChoices.length,
+					childType: assetChoices.length > 0 && assetChoices[0].relationshipSelectorID ? 'relationship' : 'asset'
+				});
 
 			if (loops.loops > 1) {
 				if (chosen) {
@@ -290,16 +309,26 @@
 			</div>
 		{:else}
 			<div transition:slide|global={{ duration: 200 }}>
-				<AssetSection
-					{gameID}
-					{user}
-					{userID}
-					assetIDs={item.children}
-					chosenID={item.chosen}
-					choose={choose(item.depth)}
-					unchoose={unchoose(item.depth)}
-					subselection={item.loop}
-				/>
+				{#if item.childType === 'asset'}
+					<AssetSection
+						{gameID}
+						{user}
+						{userID}
+						assetIDs={item.children}
+						chosenID={item.chosen}
+						choose={choose(item.depth)}
+						unchoose={unchoose(item.depth)}
+						subselection={item.loop}
+					/>
+				{:else}
+					<!-- For relationship nodes, render the RelationshipChooser for the first selector for now -->
+					<RelationshipChooser
+						{gameID}
+						{user}
+						{userID}
+						relationshipSelectorID={item.children[0]}
+					/>
+				{/if}
 			</div>
 		{/if}
 	{/each}

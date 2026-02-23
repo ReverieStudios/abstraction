@@ -17,7 +17,7 @@ export namespace Relationship {
 	}
 }
 
-export const getFields = (relationship: Docs.Relationship, type: Docs.RelationshipType, summaryLabel = true) => {
+export const getFields = (relationship: Docs.Relationship | null, type: Docs.RelationshipType, summaryLabel = true) => {
 	if (!relationship || !type) {
 		return [];
 	}

@@ -19,7 +19,7 @@
 	export let gameID: string | null = null;
 	export let userID: string | null = null;
 	export let user: User | null = null;
-	export let chosenAssets: Readable<string[]>;
+	export let chosenItems: Readable<string[]>;
 	export let secureLock: (assetID: string, depth: number) => Promise<boolean>;
 	export let releaseLocks: (assetIDs: string[]) => Promise<boolean>;
 	export let finalize: (() => Promise<boolean>) | null = null;
@@ -31,13 +31,13 @@
 	$: nodesByParentId = groupByParentId($decisionTree) as KeyGroups.Decision;
 	$: nodesById = keyBy($decisionTree, 'id') as KeyMaps.Decision;
 	$: allVariables = Array.from(
-		($decisionTree ?? []).reduce((acc, node) => {
-			const vars = isAssetNode(node.data) ? node.data?.setVariables?.map((v) => v.name) ?? [] : [];
+		($decisionTree ?? []).reduce((acc: Set<string>, node) => {
+			const vars: string[] = isAssetNode(node.data) ? node.data?.setVariables?.map((v) => v.name) ?? [] : [];
 			vars.forEach((v) => acc.add(v));
 			return acc;
-		}, new Set())
-	);
-	$: variableSetup = allVariables.map((name) => `let ${name} = 0;`).join('\n');
+		}, new Set<string>())
+	) as string[];
+	$: variableSetup = allVariables.map((name) => `let ${name} = 0;`).join('\n') as string;
 
 	let loading = false;
 
@@ -50,7 +50,7 @@
 
 	const unchoose = (depth: number) => () => {
 		if (!loading) {
-			const freed = $chosenAssets.slice(depth);
+			const freed = $chosenItems.slice(depth);
 			loading = true;
 			releaseLocks(freed).finally(() => (loading = false));
 		}
@@ -76,7 +76,7 @@
 		);
 	};
 
-	interface DecisionAsset {
+	interface DecisionElement {
 		decisionID: string;
 		assetID?: string;
 		relationshipSelectorID?: string;
@@ -136,7 +136,7 @@
 		return loop.options.filter((opt) => endChoices.every((chosenEnd) => !opt.includes(chosenEnd)));
 	};
 
-	const getAssetChildren = (
+	const getChildren = (
 		byParent: KeyGroups.Decision,
 		root: string,
 		chosenIDs: string[]
@@ -145,7 +145,7 @@
 		options: string[];
 		depth: number;
 		name: string;
-		children: DecisionAsset[];
+		children: DecisionElement[];
 	} => {
 		const decisions = nodesByParentId[root] ?? [];
 		const childConditions = nodesById[root]?.data?.childConditions || {};
@@ -156,7 +156,7 @@
 				depth: getMaxTreeDepth(decisions[0].id, true),
 				options: enumerateOptions(decisions[0].id, chosenIDs),
 				name: decisions[0].data.name,
-				children: getAssetChildren(byParent, decisions[0].id, chosenIDs).children
+				children: getChildren(byParent, decisions[0].id, chosenIDs).children
 			};
 		}
 		const children = decisions.flatMap((decision) => {
@@ -218,7 +218,7 @@
 		let pointer: string | null | undefined = START_ID;
 		let loops: MultiSelect | null = null;
 		while (pointer) {
-			const nextNodes = getAssetChildren(nodesByParentId, pointer, chosenIDs);
+			const nextNodes = getChildren(nodesByParentId, pointer, chosenIDs);
 			if (loops === null) {
 				loops = {
 					name: nextNodes.name,
@@ -235,7 +235,7 @@
 				remainingOptions.includes(child.decisionID)
 			);
 			const chosen = assetChoices.find((choice) => {
-				const currentChosen = $chosenAssets[newList.length];
+				const currentChosen = $chosenItems[newList.length];
 				if (!currentChosen) return false;
 				if (choice.assetID) {
 					return choice.assetID === currentChosen;
@@ -295,7 +295,7 @@
 <svelte:head>
 	<title>{gameName ?? 'Game'} Character Builder</title>
 </svelte:head>
-<CartSidebar {chosenAssets} {nodesById} />
+<CartSidebar chosenAssets={chosenItems} {nodesById} />
 
 <div class="content mt3">
 	{#if list.length === 0}
@@ -333,7 +333,6 @@
 						subselection={item.loop}
 					/>
 				{:else}
-					<!-- For relationship nodes, render a RelationshipSection with one chooser per selector -->
 					<RelationshipSection
 						{gameID}
 						{user}

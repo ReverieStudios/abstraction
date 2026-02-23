@@ -75,8 +75,8 @@
 	<script src="https://unpkg.com/svelte-drag-drop-touch@0.1.9/dist/svelte-drag-drop-touch.bundled.js"></script>
 </svelte:head>
 
-<div class="p2" id={"relationship-" + selector?.id}>
-    <div class="ml-auto flex items-center g1">
+<div class="p1" id={"relationship-" + selector?.id}>
+    <div class="flex items-center justify-between g1">
         <h2 class="mb1">{selector?.data?.name ?? 'Relationships'}</h2>
         {#if !isChosen}
             <Tooltip rich text="Add '{selector?.data?.name }'">

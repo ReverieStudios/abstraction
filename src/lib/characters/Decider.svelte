@@ -252,7 +252,7 @@
 			newList.push({
 				id: `${pointer}-${loops.loops}`,
 				depth: newList.length,
-				chosen: chosen?.assetID,
+				chosen: chosen?.assetID ?? chosen?.relationshipSelectorID ?? undefined,
 				children: assetChoices.map((c) => c.assetID ?? c.relationshipSelectorID ?? ''),
 				childType: assetChoices.length > 0 && assetChoices[0].relationshipSelectorID ? 'relationship' : 'asset',
 				loop: {
@@ -338,6 +338,7 @@
 						{user}
 						{userID}
 						relationshipSelectorIDs={item.children}
+						chosenID={item.chosen}
 						choose={choose(item.depth)}
 						unchoose={unchoose(item.depth)}
 						subselection={item.loop}

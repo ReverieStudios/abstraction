@@ -95,8 +95,9 @@
         {:else}
             <div class="chooser-grid">
 				<div class="bg-surface">
+					<h4>Rank Your Choices Here</h4>
 					<div class="p2 rounded bg-secondary h3">
-						<h4>Rank Your Choices Here</h4>
+
 							{#each rankedIds as id, i (id)}
 							<div animate:flip>
 								<SortableItem

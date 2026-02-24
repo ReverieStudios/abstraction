@@ -79,6 +79,13 @@
 <div class="p1" id={"relationship-" + selector?.id}>
     <div class="flex items-center justify-between g1">
         <h2 class="mb1">{selector?.data?.name ?? 'Relationships'}</h2>
+		{#if subselection.depth > 1 && subselection.loopDepth === 0 && subselection.total > 1}
+			<div class="h4">
+				{subselection.name} ({subselection.total} Choice{subselection.total > 1 ? 's' : ''})
+				<br/>
+				<span class="muted">Choice {subselection.on}</span>
+			</div>
+		{/if}
         {#if !isChosen}
             <Tooltip rich text="Add '{selector?.data?.name }'">
                 <IconButton icon="add_shopping_cart" on:click={() => selectedId && choose ? choose(selectedId) : null} />
@@ -95,7 +102,7 @@
         {:else}
             <div class="chooser-grid">
 				<div class="bg-surface">
-					<h4>Rank Your Choices Here</h4>
+					<div class="flex items-center justify-between g1"><h3>Rank Your Choices Here</h3><IconButton icon="help_outline" on:click={() => dispatch('help')} /></div>
 					<div class="p2 rounded bg-secondary h3">
 
 							{#each rankedIds as id, i (id)}

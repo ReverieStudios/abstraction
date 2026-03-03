@@ -87,6 +87,8 @@
 	// track whether the user has interacted with the list (so server results don't overwrite)
 	let userHasTouched = false;
 	let applyingServerRanks = false;
+	// key to force remount of the sortable list so third-party libs rebind correctly
+	let listKey = 0;
 
 	async function applyRanks(ranks: string[]) {
 		console.log('RelationshipChooser.applyRanks:', relationshipSelectorID, 'ranks=', ranks);
@@ -94,7 +96,13 @@
 		// mutate in-place so SortableItem keeps the same array reference
 		rankedIds.splice(0, rankedIds.length, ...ranks);
 		// allow DOM + sortable internals to rebind
-		await tick();
+			await tick();
+			// give the browser a couple animation frames so external sortable libraries
+			// (which may attach listeners in requestAnimationFrame/onMount) can rebind.
+			await new Promise(requestAnimationFrame);
+			await new Promise(requestAnimationFrame);
+		// bump key to force remount of SortableItem list so internal state resets
+		listKey += 1;
 		applyingServerRanks = false;
 		console.log('RelationshipChooser.applyRanks: applied for', relationshipSelectorID, 'rankedIds=', rankedIds);
 	}
@@ -195,25 +203,26 @@ $: if (
 					<div class="bg-surface">
 						<div class="flex items-center justify-between g1"><h3>Rank Your Choices Here</h3><IconButton icon="help_outline" on:click={() => dispatch('help')} /></div>
 						<div class="p2 rounded bg-secondary h3">
-
-								{#each rankedIds as id, i (id)}
-								<div animate:flip>
-									<SortableItem
-										propItemNumber={i}
-										bind:propData={rankedIds}
-										bind:propHoveredItemNumber={numberHoveredItem}
-									>
-										<div class="sortable-row"
-     										on:pointerdown={() => (userHasTouched = true)}
-     										on:touchstart={() => (userHasTouched = true)}
-     										class:classHovered={numberHoveredItem === i}
-     										on:click={() => onClickItem(id)}>
-											<MoveIcon propSize={12} />
-											{$relationshipsById?.[id]?.data?.name ?? id}
-										</div>
-									</SortableItem>
-								</div>
-								{/each}
+									{#key listKey}
+									{#each rankedIds as id, i (id)}
+									<div animate:flip>
+										<SortableItem
+											propItemNumber={i}
+											bind:propData={rankedIds}
+											bind:propHoveredItemNumber={numberHoveredItem}
+										>
+											<div class="sortable-row"
+					 							on:pointerdown={() => (userHasTouched = true)}
+					 							on:touchstart={() => (userHasTouched = true)}
+					 							class:classHovered={numberHoveredItem === i}
+					 							on:click={() => onClickItem(id)}>
+												<MoveIcon propSize={12} />
+												{$relationshipsById?.[id]?.data?.name ?? id}
+											</div>
+										</SortableItem>
+									</div>
+									{/each}
+									{/key}
 
 						</div>
 						<div class="p2">You will get {selector?.data?.relationshipsPerCharacter} relationship{selector?.data?.relationshipsPerCharacter > 1 ? 's' : ''} from this group.</div>

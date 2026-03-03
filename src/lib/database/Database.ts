@@ -17,6 +17,7 @@ import type { Token } from './types/Token';
 import type { Relationship } from './types/Relationships';
 import type { RelationshipType } from './types/RelationshipTypes';
 import type { RelationshipSelector } from './types/RelationshipSelectors';
+import type { RelationshipAssignment } from './types/RelationshipAssignments';
 
 interface Database {
 	games: Collection<Game>;
@@ -31,9 +32,11 @@ interface Database {
 	assetTypes?: DocumentMap<AssetType> | null;
 	characters?: Collection<Character> | null;
 	decisionTree?: DocumentMap<Decision> | null;
+	
 	relationships?: Collection<Relationship> | null;
 	relationshipTypes?: DocumentMap<RelationshipType> | null;
 	relationshipSelectors?: Collection<RelationshipSelector> | null;
+	relationshipAssignments?: Collection<RelationshipAssignment> | null;
 
 	favorites?: CollectionDocument<Favorites> | null;
 	allFavorites?: Collection<Favorites> | null;
@@ -73,11 +76,13 @@ const updateDatabase = () => {
 		? new Collection(`games/${gameID}/characters`, { sortBy: 'name' })
 		: null;
 	database.decisionTree = gameID ? new DocumentMap(`games/${gameID}/data/decisionTree`) : null;
+	
 	database.relationships =  gameID
 		? new Collection(`games/${gameID}/relationships`, { sortBy: 'name', cacheField: 'lastUpdated' })
 		: null;
 	database.relationshipTypes = gameID ? new DocumentMap(`games/${gameID}/data/relationshipTypes`, 'name') : null;
 	database.relationshipSelectors = gameID ? new Collection(`games/${gameID}/relationshipSelectors`, { sortBy: 'name', cacheField: 'lastUpdated' }) : null;
+	database.relationshipAssignments = gameID ? new Collection(`games/${gameID}/relationshipAssignments`, { sortBy: 'relationshipSelectorID'}) : null;
 	
 	database.favoriteCounts = gameID
 		? new CollectionDocument(`games/${gameID}/data/favorites`)

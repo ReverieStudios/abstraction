@@ -4,6 +4,7 @@ import type { SubDocType } from '../DocumentMap';
 import type { Asset as _Asset } from './Assets';
 import type { AssetType as _AssetType } from './AssetTypes';
 import type { Relationship as _Relationship } from './Relationships';
+import type { RelationshipAssignment as _RelationshipAssignment } from './RelationshipAssignments';
 import type { RelationshipType as _RelationshipType } from './RelationshipTypes';
 import type { RelationshipSelector as _RelationshipSelector } from './RelationshipSelectors';
 import type { Character as _Character } from './Character';
@@ -29,6 +30,7 @@ export namespace Docs {
 	export type Relationship = DocType<_Relationship>;
 	export type RelationshipType = SubDocType<_RelationshipType>;
 	export type RelationshipSelector = DocType<_RelationshipSelector>;
+	export type RelationshipAssignment = DocType<_RelationshipAssignment>;
 	export type Character = DocType<_Character>;
 	export type Decision = SubDocType<_Decision>;
 	export type Favorites = DocType<_Favorites>;
@@ -45,6 +47,7 @@ export namespace Updaters {
 	export type Relationship = Updater<_Relationship>;
 	export type RelationshipType = Updater<_RelationshipType>;
 	export type RelationshipSelector = Updater<_RelationshipSelector>;
+	export type RelationshipAssignment = Updater<_RelationshipAssignment>;
 	export type Character = Updater<_Character>;
 	export type Decision = Updater<_Decision>;
 	export type Favorites = Updater<_Favorites>;
@@ -61,6 +64,7 @@ export namespace KeyMaps {
 	export type Relationship<T extends key = string> = DocMap<T, _Relationship>;
 	export type RelationshipType<T extends key = string> = SubDocMap<T, _RelationshipType>;
 	export type RelationshipSelector<T extends key = string> = DocMap<T, _RelationshipSelector>;
+	export type RelationshipAssignment<T extends key = string> = DocMap<T, _RelationshipAssignment>;
 	export type Character<T extends key = string> = DocMap<T, _Character>;
 	export type Decision<T extends key = string> = SubDocMap<T, _Decision>;
 	export type Favorites<T extends key = string> = DocMap<T, _Favorites>;
@@ -77,6 +81,7 @@ export namespace KeyGroups {
 	export type Relationship<T extends key = string> = DocKeyGroup<T, _Relationship>;
 	export type RelationshipType<T extends key = string> = SubDocKeyGroup<T, _RelationshipType>;
 	export type RelationshipSelector<T extends key = string> = DocKeyGroup<T, _RelationshipSelector>;
+	export type RelationshipAssignment<T extends key = string> = DocKeyGroup<T, _RelationshipAssignment>;
 	export type Character<T extends key = string> = DocKeyGroup<T, _Character>;
 	export type Decision<T extends key = string> = SubDocKeyGroup<T, _Decision>;
 	export type Favorites<T extends key = string> = DocKeyGroup<T, _Favorites>;

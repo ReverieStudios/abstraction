@@ -9,14 +9,13 @@
   import type { Dictionary } from 'lodash';
 
   export let chosenItems: Readable<string[]>; // Array of selected asset IDs
-  export let nodesById: Record<string, any>;    // Map of all nodes by ID
   const assetsById: Readable<Dictionary<Docs.Asset>> = derived(database.assets, ($assets) => keyBy($assets ?? [], 'id'));
 	const selectorsById: Readable<Dictionary<Docs.RelationshipSelector>> = derived(database.relationshipSelectors, ($sels) => keyBy($sels ?? [], 'id'));
   const assetTypesById: Readable<Dictionary<Docs.AssetType>> = derived(database.assetTypes, ($types) => keyBy($types ?? [], 'id'));
 
   let open = false;
 
-  function scrollToAsset(assetID: string) {
+  function scrollToItem(assetID: string) {
     const el = document.getElementById(`asset-${assetID}`) ?? document.getElementById(`chooser-${assetID}`);
     if (el) {
       el.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -26,7 +25,6 @@
   }
 
   function getTypeName(itemID: string): string {
-    console.log('getTypeName called with itemID=', itemID, 'assetsById=', $assetsById, 'selectorsById=', $selectorsById, 'assetTypesById=', $assetTypesById);
     if ($assetsById[itemID])  {
       const typeId = $assetsById[itemID].data?.type;
       return $assetTypesById[typeId]?.data?.name ?? 'Asset';
@@ -133,7 +131,7 @@
           <Button
             type="button"
             class="cart-item mb1 mt1 h4 flex flex-auto"
-            on:click={() => scrollToAsset(id)}
+            on:click={() => scrollToItem(id)}
           >
             <Label style="text-align: left;">
               {i + 1}. {getTypeName(id)} - {getItemName(id)}

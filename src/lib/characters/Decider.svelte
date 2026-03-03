@@ -294,7 +294,7 @@
 <svelte:head>
 	<title>{gameName ?? 'Game'} Character Builder</title>
 </svelte:head>
-<CartSidebar chosenItems={chosenItems} {nodesById} />
+<CartSidebar chosenItems={chosenItems} />
 
 <div class="content mt3">
 	{#if list.length === 0}

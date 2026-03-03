@@ -56,8 +56,6 @@
 	let selector: Docs.RelationshipSelector | null = null;
 	$: selector = $relationshipSelectors?.find((s: any) => s.id === relationshipSelectorID) ?? null;
 
-	// ensure we never pass an empty id into `doc()` (which produces an invalid path)
-	// start with a harmless placeholder doc (so `$assetLock` can be subscribed safely)
 	let assetLock = database.locks?.doc("__missing__");
 	$: assetLock = database.locks?.doc(selector?.id ?? "__missing__");
 	$: requirements = $assetLock?.data?.requirements;
@@ -96,18 +94,13 @@
 		// mutate in-place so SortableItem keeps the same array reference
 		rankedIds.splice(0, rankedIds.length, ...ranks);
 		// allow DOM + sortable internals to rebind
-			await tick();
-			// give the browser a couple animation frames so external sortable libraries
-			// (which may attach listeners in requestAnimationFrame/onMount) can rebind.
-			await new Promise(requestAnimationFrame);
-			await new Promise(requestAnimationFrame);
+		await tick();
 		// bump key to force remount of SortableItem list so internal state resets
 		listKey += 1;
 		applyingServerRanks = false;
 		console.log('RelationshipChooser.applyRanks: applied for', relationshipSelectorID, 'rankedIds=', rankedIds);
 	}
 
-	// ranking state (array of relationship IDs)
 	let rankedIds: string[] = [];
 	// guard so we only initialize rankedIds when the selector first appears or changes
 	let _selectorInitializedId: string | null = null;
@@ -127,7 +120,6 @@
 	})();
 	}
 
-// helper: shallow array equality for ID arrays
 function arraysEqual(a: string[] | null | undefined, b: string[] | null | undefined) {
     if (a === b) return true;
     if (!a || !b) return false;
@@ -152,13 +144,8 @@ $: if (
 		selectedId = rankedIds[0] ?? null;
 	}
 }
-
-// userHasTouched is now set only on actual user input (pointerdown/touchstart)
-
 	let selectedId: string | null = null;
-
 	const dispatch = createEventDispatcher();
-
 	function onClickItem(id: string) {
 		selectedId = id;
 		dispatch('select', { id });

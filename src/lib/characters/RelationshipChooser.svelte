@@ -5,6 +5,7 @@
 	import { derived, type Readable } from 'svelte/store';
 	import { keyBy } from 'lodash-es';
 	import { createEventDispatcher } from 'svelte';
+	import { slide } from 'svelte/transition';
 	import { flip } from 'svelte/animate';
 	import { MoveIcon, SortableItem} from 'svelte-sortable-items';
 	import Tooltip from 'lib/ui/Tooltip.svelte';
@@ -96,55 +97,57 @@
             </Tooltip>
         {/if}
     </div>
-    <div class="relationship-chooser mb2">
-        {#if !selector}
-            <div class="muted">No relationship selector found.</div>
-        {:else}
-            <div class="chooser-grid">
-				<div class="bg-surface">
-					<div class="flex items-center justify-between g1"><h3>Rank Your Choices Here</h3><IconButton icon="help_outline" on:click={() => dispatch('help')} /></div>
-					<div class="p2 rounded bg-secondary h3">
+	{#if !isChosen}
+		<div class="relationship-chooser mb2" out:slide|global data-showing>
+			{#if !selector}
+				<div class="muted">No relationship selector found.</div>
+			{:else}
+				<div class="chooser-grid">
+					<div class="bg-surface">
+						<div class="flex items-center justify-between g1"><h3>Rank Your Choices Here</h3><IconButton icon="help_outline" on:click={() => dispatch('help')} /></div>
+						<div class="p2 rounded bg-secondary h3">
 
-							{#each rankedIds as id, i (id)}
-							<div animate:flip>
-								<SortableItem
-									propItemNumber={i}
-									bind:propData={rankedIds}
-									bind:propHoveredItemNumber={numberHoveredItem}
-								>
-									<div class="sortable-row" class:classHovered={numberHoveredItem === i} on:click={() => onClickItem(id)}>
-										<MoveIcon propSize={12} />
-										{$relationshipsById?.[id]?.data?.name ?? id}
-									</div>
-								</SortableItem>
-							</div>
-							{/each}
-
-					</div>
-					<div class="p2">You will get {selector?.data?.relationshipsPerCharacter} relationship{selector?.data?.relationshipsPerCharacter > 1 ? 's' : ''} from this group.</div>
-				</div>
-
-                <div class="preview">
-                    {#if rankedIds.length === 0}
-                        <div class="muted">No relationships available</div>
-                    {:else}
-                        <div class="rows rounded bg-secondary-light h3 p2">
-							{#each rankedIds as id (id)}
-								<div class:hidden={id !== selectedId} class:selected={id === selectedId}>
-									<RelationshipRow
-										{gameID}
-										{user}
-										{userID}
-										relationship={$relationshipsById?.[id]}
-									/>
+								{#each rankedIds as id, i (id)}
+								<div animate:flip>
+									<SortableItem
+										propItemNumber={i}
+										bind:propData={rankedIds}
+										bind:propHoveredItemNumber={numberHoveredItem}
+									>
+										<div class="sortable-row" class:classHovered={numberHoveredItem === i} on:click={() => onClickItem(id)}>
+											<MoveIcon propSize={12} />
+											{$relationshipsById?.[id]?.data?.name ?? id}
+										</div>
+									</SortableItem>
 								</div>
-							{/each}
-                        </div>
-                    {/if}
-                </div>
-            </div>
-        {/if}
-    </div>
+								{/each}
+
+						</div>
+						<div class="p2">You will get {selector?.data?.relationshipsPerCharacter} relationship{selector?.data?.relationshipsPerCharacter > 1 ? 's' : ''} from this group.</div>
+					</div>
+
+					<div class="preview">
+						{#if rankedIds.length === 0}
+							<div class="muted">No relationships available</div>
+						{:else}
+							<div class="rows rounded bg-secondary-light h3 p2">
+								{#each rankedIds as id (id)}
+									<div class:hidden={id !== selectedId} class:selected={id === selectedId}>
+										<RelationshipRow
+											{gameID}
+											{user}
+											{userID}
+											relationship={$relationshipsById?.[id]}
+										/>
+									</div>
+								{/each}
+							</div>
+						{/if}
+					</div>
+				</div>
+			{/if}
+		</div>
+	{/if}
 </div>
 <style>
 	.chooser-grid { display: grid; grid-template-columns: 320px 1fr; gap: 1rem; }

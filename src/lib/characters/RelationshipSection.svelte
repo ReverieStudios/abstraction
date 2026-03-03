@@ -20,10 +20,6 @@
     loopDepth: number;
   } = { name: '', on: 1, total: 1, depth: 1, loopDepth: 1 };
 
-  $: {
-    console.log('RelationshipSection: relationshipSelectorIDs=', relationshipSelectorIDs, 'chosenID=', chosenID);
-  }
-
   const relationshipSelectors = database.relationshipSelectors;
   const selectorsById: Readable<Record<string, Docs.RelationshipSelector>> = derived(
     relationshipSelectors,

@@ -2,14 +2,17 @@
 	import { database } from '$lib/database';
 	import type { Docs } from '$lib/database';
 	import RelationshipRow from './RelationshipRow.svelte';
-	import { derived, get, type Readable } from 'svelte/store';
+	import { derived, type Readable } from 'svelte/store';
+	import { Lock, isPurchased } from '$lib/database/types/Lock';
 	import { keyBy } from 'lodash-es';
-	import { createEventDispatcher } from 'svelte';
+	import { createEventDispatcher, tick } from 'svelte';
 	import { slide } from 'svelte/transition';
 	import { flip } from 'svelte/animate';
 	import { MoveIcon, SortableItem} from 'svelte-sortable-items';
 	import Tooltip from 'lib/ui/Tooltip.svelte';
 	import IconButton from 'lib/ui/IconButton.svelte';
+	import LockIcon from './LockIcon.svelte';
+	import FlagCheck from './FlagCheck.svelte';
 
 	export let gameID: string | null = null;
 	export let userID: string | null = null;
@@ -52,7 +55,49 @@
 
 	let selector: Docs.RelationshipSelector | null = null;
 	$: selector = $relationshipSelectors?.find((s: any) => s.id === relationshipSelectorID) ?? null;
+
+	// ensure we never pass an empty id into `doc()` (which produces an invalid path)
+	// start with a harmless placeholder doc (so `$assetLock` can be subscribed safely)
+	let assetLock = database.locks?.doc("__missing__");
+	$: assetLock = database.locks?.doc(selector?.id ?? "__missing__");
+	$: requirements = $assetLock?.data?.requirements;
+	$: limitations = $assetLock?.data?.limitations;
+
+	const lockStatus: Readable<Lock.Status> = derived(assetLock, (lock) => {
+		const limit = lock?.data?.claimLimit ?? 0;
+		const claims = lock?.data?.claims ?? [];
+		const queue = lock?.data?.claimsQueue ?? [];
+		if (!limit) {
+			return Lock.Status.None;
+		} else if (claims.some((lock: Lock.Claim) => lock.purchaser === userID)) {
+			return Lock.Status.PlayerClaimed;
+		} else if (claims.length >= limit && claims.every((lock: Lock.Claim) => isPurchased(lock))) {
+			return Lock.Status.Unavailable;
+		} else if (queue.includes(userID)) {
+			return Lock.Status.PlayerQueued;
+		}  else if (claims.length < limit) {
+			return Lock.Status.PlayerCanClaim;
+		} else {
+			return Lock.Status.PlayerCanQueue;
+		}
+	});
+
 	let numberHoveredItem: number;
+
+	// track whether the user has interacted with the list (so server results don't overwrite)
+	let userHasTouched = false;
+	let applyingServerRanks = false;
+
+	async function applyRanks(ranks: string[]) {
+		console.log('RelationshipChooser.applyRanks:', relationshipSelectorID, 'ranks=', ranks);
+		applyingServerRanks = true;
+		// mutate in-place so SortableItem keeps the same array reference
+		rankedIds.splice(0, rankedIds.length, ...ranks);
+		// allow DOM + sortable internals to rebind
+		await tick();
+		applyingServerRanks = false;
+		console.log('RelationshipChooser.applyRanks: applied for', relationshipSelectorID, 'rankedIds=', rankedIds);
+	}
 
 	// ranking state (array of relationship IDs)
 	let rankedIds: string[] = [];
@@ -60,17 +105,18 @@
 	let _selectorInitializedId: string | null = null;
 	// initialize from parent-provided `existingRanks` when available; fall back to selector data
 	$: if (selector && selector.id !== _selectorInitializedId) {
-		if (Array.isArray(existingRanks) && existingRanks.length > 0) {
-			// trust parent-provided rankings when present
-			rankedIds = existingRanks.slice();
-		} else {
-			rankedIds = Array.isArray(selector.data?.relationshipIDs) ? [...selector.data.relationshipIDs] : [];
-		}
-		// ensure selected remains valid
+	(async () => {
+		const seed = Array.isArray(existingRanks) && existingRanks.length > 0
+		? existingRanks
+		: (Array.isArray(selector.data?.relationshipIDs) ? selector.data.relationshipIDs : []);
+
+		await applyRanks(seed); // waits for tick() inside applyRanks
+		// now ranks are actually in `rankedIds`
 		if (!selectedId || !rankedIds.includes(selectedId)) {
-			selectedId = rankedIds[0] ?? null;
+		selectedId = rankedIds[0] ?? null;
 		}
 		_selectorInitializedId = selector.id;
+	})();
 	}
 
 // helper: shallow array equality for ID arrays
@@ -85,17 +131,21 @@ function arraysEqual(a: string[] | null | undefined, b: string[] | null | undefi
 // If parent-provided rankings arrive after initialization, update the local ordering.
 // `existingRanks === null` indicates loading; only apply when parent has provided an array.
 $: if (
-    selector &&
-    selector.id === _selectorInitializedId &&
-    Array.isArray(existingRanks) &&
+	selector &&
+	selector.id === _selectorInitializedId &&
+	Array.isArray(existingRanks) &&
 	existingRanks.length > 0 &&
-    !arraysEqual(rankedIds, existingRanks)
+	!arraysEqual(rankedIds, existingRanks) &&
+	!userHasTouched
 ) {
-    rankedIds = existingRanks.slice();
-    if (!selectedId || !rankedIds.includes(selectedId)) {
-        selectedId = rankedIds[0] ?? null;
-    }
+	// apply server rankings only if user hasn't already interacted
+	applyRanks(existingRanks);
+	if (!selectedId || !rankedIds.includes(selectedId)) {
+		selectedId = rankedIds[0] ?? null;
+	}
 }
+
+// userHasTouched is now set only on actual user input (pointerdown/touchstart)
 
 	let selectedId: string | null = null;
 
@@ -113,8 +163,10 @@ $: if (
 </svelte:head>
 
 <div class="p1" id={"chooser-" + selector?.id}>
-    <div class="flex items-center justify-between g1">
+    <div class="flex items-center g1">
+		<LockIcon {lockStatus} asset={selector} />
         <h2 class="mb1">{selector?.data?.name ?? 'Relationships'}</h2>
+		{#if !isChosen}<FlagCheck {gameID} {user} {requirements} {limitations} />{/if}
 		{#if subselection.depth > 1 && subselection.loopDepth === 0 && subselection.total > 1}
 			<div class="h4">
 				{subselection.name} ({subselection.total} Choice{subselection.total > 1 ? 's' : ''})
@@ -122,6 +174,7 @@ $: if (
 				<span class="muted">Choice {subselection.on}</span>
 			</div>
 		{/if}
+		<div class="ml-auto flex items-center g1">
         {#if !isChosen}
             <Tooltip rich text="Add '{selector?.data?.name }'">
                 <IconButton icon="add_shopping_cart" on:click={() => handleChoose(relationshipSelectorID, rankedIds)} />
@@ -131,6 +184,7 @@ $: if (
                 <IconButton icon="remove_shopping_cart" on:click={unchoose} />
             </Tooltip>
         {/if}
+		</div>
     </div>
 	{#if !isChosen}
 		<div class="relationship-chooser mb2" out:slide|global data-showing>
@@ -149,7 +203,11 @@ $: if (
 										bind:propData={rankedIds}
 										bind:propHoveredItemNumber={numberHoveredItem}
 									>
-										<div class="sortable-row" class:classHovered={numberHoveredItem === i} on:click={() => onClickItem(id)}>
+										<div class="sortable-row"
+     										on:pointerdown={() => (userHasTouched = true)}
+     										on:touchstart={() => (userHasTouched = true)}
+     										class:classHovered={numberHoveredItem === i}
+     										on:click={() => onClickItem(id)}>
 											<MoveIcon propSize={12} />
 											{$relationshipsById?.[id]?.data?.name ?? id}
 										</div>

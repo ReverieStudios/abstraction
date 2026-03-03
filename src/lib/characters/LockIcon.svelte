@@ -11,7 +11,7 @@
 	import type { Readable } from 'svelte/store';
 
 	export let lockStatus: Readable<Lock.Status>;
-	export let asset: Docs.Asset | null;
+	export let asset: Docs.Asset | Docs.RelationshipSelector | null;
 
 	const sendNotification = getNotify();
 

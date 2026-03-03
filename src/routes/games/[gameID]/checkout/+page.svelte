@@ -101,10 +101,12 @@
 		})
 			.then((res) => res.json())
 			.then((body) => {
-				if (!body.success) {
-					sendNotification({ text: 'Unable to update rankings.' });
+				if (body?.message) {
+					sendNotification({ text: `Unable to update rankings: ${body.message}`});
+					return false;
+				} {
+					return body;
 				}
-				return body.success;
 			});
 </script>
 

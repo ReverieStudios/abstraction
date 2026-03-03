@@ -17,6 +17,7 @@
 	import type { FieldValue, WithFieldValue } from 'firebase/firestore';
 	import HeirarchicalCheckBoxGroup from 'lib/form/HeirarchicalCheckBoxGroup.svelte';
 	import ChildCondition from 'lib/DecisionTree/ChildCondition.svelte';
+	import CheckBoxGroup from '$lib/form/CheckBoxGroup.svelte';
 
 	const game: Game = $page.data.game;
 	const gameID: string = $page.data.gameID;
@@ -24,6 +25,14 @@
 	const relationships = database.relationships;
 	const relationshipTypes = database.relationshipTypes;
 	const relationshipSelectors = database.relationshipSelectors;
+
+	const flags = database.flags;
+	$: flagsForCheckboxes = $flags?.map((flag) => ({ label: flag.data.name, value: flag.id }));
+
+	let selectorLock;
+	let lock;
+	$: selectorLock = editing ? database?.locks?.doc(editing.id) : null;
+	$: lock = $selectorLock;
 
     let relationshipGroups: { id: string; label?: string; items: { label: string; value: string }[] }[] | null = null;
 
@@ -75,17 +84,18 @@
 	};
 
 	const updateRelationshipSelector = (
-		values: { relationshipSelector: Updaters.RelationshipSelector; },
+		values: { relationshipSelector: Updaters.RelationshipSelector; lock: Updaters.Lock },
 		modified: Record<string, boolean>
 	) => {
 		return Promise.all([
 			modified.relationshipSelector && editing?.update(values.relationshipSelector),
+			modified.lock && selectorLock?.update(values.lock),
 			notifyRelationshipSelectorChange(editing?.id, values.relationshipSelector?.name)
 		]);
 	};
 
 	const removeRelationshipSelector = (rel: Docs.RelationshipSelector) => {
-		return Promise.all([rel.remove()]);
+		return Promise.all([rel.remove(), database?.locks?.doc(rel.id)?.remove()]);
 	};
 
 	let closeModal;
@@ -103,8 +113,8 @@
 
 		<Form
 			class="flex flex-column g2"
-			initialValues={{ relationshipSelector: editing?.data }}
-			multiformd
+			initialValues={{ relationshipSelector: editing?.data, lock: lock?.data }}
+			multiform
 			onSubmit={updateRelationshipSelector}
 			afterSubmit={closeModal}
 		>
@@ -126,6 +136,21 @@
                 let:checked
                 slot="extra" name="childConditions.{id}" {checked} />
             </HeirarchicalCheckBoxGroup>
+
+			<div class="flex">
+				<CheckBoxGroup
+					class="flex-auto border-right"
+					label="Required"
+					name="lock.requirements"
+					items={flagsForCheckboxes}
+				/>
+				<CheckBoxGroup
+					class="flex-auto"
+					label="Forbidden"
+					name="lock.limitations"
+					items={flagsForCheckboxes}
+				/>
+			</div>
 
 			<TextField
 				label="Number of relationships per characater"

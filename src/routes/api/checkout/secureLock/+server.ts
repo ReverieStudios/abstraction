@@ -31,19 +31,16 @@ export const POST: RequestHandler = async (event) => {
 		const lockResult: LockResult = await store
 			.runTransaction<LockResult>(async (transaction) => {
 				const lock = await database.locks?.doc(assetID)?.read(transaction);
-				const relationshipSelector = await database.relationshipSelectors?.doc(assetID)?.read(transaction);
-				if (!lock.exists && !relationshipSelector.exists) {
-					// unknown asset, not a relationship selector
+				if (!lock) {
+					// unknown asset / relationship selector
 					return false;
 				}
 				const character = await database.characters?.doc(uid)?.read(transaction);
 				if (depth > -1 && (character?.data?.assets ?? []).length > depth) {
 					return false;
 				}
-				if (lock?.data) {
-					const update = addLock(lock, uid, flags);
-					await lock.update(update, transaction);
-				}
+				const update = addLock(lock, uid, flags);
+				await lock.update(update, transaction);
 
 				await database.characters?.doc(uid)?.update(
 					{ assets: [...(character?.data?.assets ?? []), assetID] }, transaction

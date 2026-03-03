@@ -15,7 +15,7 @@
   export let label: string;
   export let all = false;
   export let collapsible = true;
-  export let maxHeight = '35vh';
+  export let maxHeight = '30vh';
 
   const {
     field: { value },

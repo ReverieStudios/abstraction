@@ -14,7 +14,8 @@ export const POST: RequestHandler = async (event) => {
     const payload = await event.request.json();
     const relationshipSelectorID: string = payload.relationshipSelectorID || '';
     const gameID: string = payload.gameID || '';
-    const rankings: string[] = payload.rankings || [];
+    const rankings: string[] = payload.rankedIDs || [];
+    console.log("Received update rankings request with payload", payload);
     if (!event.locals.decodedToken || !relationshipSelectorID || !gameID) {
         // missing params or not logged in
         return json({ success: false });
@@ -33,10 +34,10 @@ export const POST: RequestHandler = async (event) => {
                     return { message: "Relationship selector not found" };
                 }
 
-                if (relationshipAssignment?.data.assignedRelationships) {
+                if (relationshipAssignment?.data?.assignedRelationships) {
                     return { message: "Relationships have already been assigned" };
                 }
-
+                console.log("Relationship selector data is", relationshipSelector.data?.relationshipIDs, "and rankings are", rankings);
                 if (!rankings.every( id => relationshipSelector.data?.relationshipIDs.includes(id)) 
                 || rankings.length !== relationshipSelector.data?.relationshipIDs.length) {
                     return { message: "Rankings do not match relationship selector" };

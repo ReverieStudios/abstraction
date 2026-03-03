@@ -1,6 +1,6 @@
 <script lang="ts">
 	import Decider from '$lib/characters/Decider.svelte';
-	import { derived } from 'svelte/store';
+	import { derived, type Readable } from 'svelte/store';
 	import { getNotify } from '$lib/ui/Notifications.svelte';
 	import type {LockLimited, LockPrereqs, LockResult } from '../../../api/checkout/secureLock/+server';
 	import { onMount } from 'svelte';
@@ -17,7 +17,7 @@
 
 	const character = database.characters?.doc(userID);
 
-	const chosenAssets = derived(character, ($character) => {
+	const chosenAssets: Readable<string[]> = derived(character, ($character) => {
 		return $character?.data?.assets ?? [];
 	});
 

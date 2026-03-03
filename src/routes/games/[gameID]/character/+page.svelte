@@ -1,14 +1,14 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { database } from '$lib/database';
-	import type { Updaters } from '$lib/database';
+	import type { Docs, Updaters } from '$lib/database';
 	import Form from '$lib/form/Form.svelte';
 	import TextField from '$lib/form/TextField.svelte';
 	import Button from '$lib/form/Button.svelte';
 	import { getNotify } from '$lib/ui/Notifications.svelte';
 	import type { User } from '$lib/database/types/User';
 	import IconButton from '$lib/ui/IconButton.svelte';
-	import { derived } from 'svelte/store';
+	import { derived, type Readable } from 'svelte/store';
 	import { keyBy } from 'lodash-es';
 	import PurchasedAssetRow from '$lib/characters/PurchasedAssetRow.svelte';
 
@@ -16,18 +16,18 @@
 
 	const sendNotification = getNotify();
 	const { gameID } = $page.params;
-	const character = database.characters?.doc(user.uid);
+	const character = database.characters?.doc(user?.uid ?? "");
 
-	const characterAssets = derived([character, database.assets], ([$character, $assets]) => {
+	const characterAssets: Readable<Docs.Asset[]> = derived([character, database.assets], ([$character, $assets]) => {
 		if (!$character || !$assets) {
 			return [];
 		}
 		const assetsByID = keyBy($assets, 'id');
-		const characterAssets = $character?.data?.assets ?? [];
-		return characterAssets.map((id) => assetsByID[id]).filter(Boolean);
+		const characterAssets: string[] = $character?.data?.assets ?? [];
+		return characterAssets.map((id: string) => assetsByID[id]).filter(Boolean);
 	});
 
-	const hasLoaded = character.hasLoaded;
+	const hasLoaded = character?.hasLoaded;
 
 	const updateName = (values: Updaters.Character) => {
 		fetch('/api/character/updateName', {

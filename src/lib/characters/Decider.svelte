@@ -22,7 +22,7 @@
 	export let chosenItems: Readable<string[]>;
 	export let secureLock: (assetID: string, depth: number) => Promise<boolean>;
 	export let releaseLocks: (assetIDs: string[]) => Promise<boolean>;
-	export let updateRankings: (relationshipSelectorID: string, rankedIDs: string[]) => Promise<boolean>;
+	export let updateRankings: ((relationshipSelectorID: string, rankedIDs: string[]) => Promise<boolean>) | null = null;
 	export let finalize: (() => Promise<boolean>) | null = null;
 
 	let decisionTree = database.decisionTree;

@@ -28,7 +28,7 @@ export const _releaseLocks = async (uid: string, assetIDs: string[], releaseAll:
 
 			for (let lock of locks) {
 				if (!lock.exists) {
-					// unknown asset
+					// unknown asset, probably a relationship chooser
 					continue;
 				}
 

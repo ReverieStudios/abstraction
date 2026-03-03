@@ -91,6 +91,21 @@
 				}
 				return body.success;
 			});
+	const updateRankings = (relationshipSelectorID: string, rankedIDs: string[]): Promise<boolean> =>
+		fetch('/api/relationships/updateRankings', {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json;charset=utf-8'
+			},
+			body: JSON.stringify({ relationshipSelectorID, rankedIDs, gameID })
+		})
+			.then((res) => res.json())
+			.then((body) => {
+				if (!body.success) {
+					sendNotification({ text: 'Unable to update rankings.' });
+				}
+				return body.success;
+			});
 </script>
 
 <Decider
@@ -102,4 +117,5 @@
 	{secureLock}
 	{releaseLocks}
 	{finalize}
+	{updateRankings}
 />

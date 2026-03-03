@@ -20,7 +20,6 @@
     $: {
         const types = $relationshipTypes;
         relType = types?.find((type: Docs.RelationshipType) => type.id === relationship?.data?.type) ?? null;
-        console.log("relationship type is", relType, "from relationship", relationship?.id, "and all types are", types);
     }
 
     let fields = [];
@@ -49,10 +48,6 @@
             pendingScroll = false;
         }
     });
-
-    $: if (rowEl) {
-        console.log('rowEl assigned:', rowEl?.id);
-    }
 </script>
 
 <div class="flex items-start p2" out:slide|global data-showing bind:this={rowEl} id={"relationship-" + relationship?.id}>

@@ -2,7 +2,7 @@
 	import { database } from '$lib/database';
 	import type { Docs } from '$lib/database';
 	import RelationshipRow from './RelationshipRow.svelte';
-	import { derived, type Readable } from 'svelte/store';
+	import { derived, get, type Readable } from 'svelte/store';
 	import { keyBy } from 'lodash-es';
 	import { createEventDispatcher } from 'svelte';
 	import { slide } from 'svelte/transition';
@@ -17,6 +17,8 @@
 	export let relationshipSelectorID: string;    
 	export let choose: ((assetID: string) => void) | null = null;
 	export let unchoose: (() => void) | null = null;
+	export let updateRankings: ((relationshipSelectorID: string, rankedIDs: string[]) => Promise<boolean>) | null = null;
+	export let existingRanks: string[] | null = null;
     export let isChosen: boolean = false;
     export let subselection: {
 		name: string;
@@ -36,24 +38,34 @@
 	const relationshipSelectors = database.relationshipSelectors;
 
 	const relationshipsById: Readable<Record<string, Docs.Relationship>> = derived(relationships, ($rels) => {
-		console.log('RelationshipChooser: relationships updated', $rels);
 		return keyBy($rels ?? [], 'id');
 	});
+
+	const handleChoose = async(relationshipSelectorID: string, rankedRelationships: string[]) => {
+		if (relationshipSelectorID && choose) {
+			await choose(relationshipSelectorID);
+		}
+		if (relationshipSelectorID && rankedRelationships && updateRankings) {
+			await updateRankings(relationshipSelectorID, rankedRelationships);
+		}
+	};
 
 	let selector: Docs.RelationshipSelector | null = null;
 	$: selector = $relationshipSelectors?.find((s: any) => s.id === relationshipSelectorID) ?? null;
 	let numberHoveredItem: number;
 
-	$: console.log('RelationshipChooser: selectorID=', relationshipSelectorID, 'loadedSelector=', selector?.id, 'relationshipIDs=', selector?.data?.relationshipIDs?.length ?? 0);
-
 	// ranking state (array of relationship IDs)
 	let rankedIds: string[] = [];
 	// guard so we only initialize rankedIds when the selector first appears or changes
 	let _selectorInitializedId: string | null = null;
+	// initialize from parent-provided `existingRanks` when available; fall back to selector data
 	$: if (selector && selector.id !== _selectorInitializedId) {
-		console.log('RelationshipChooser: initializing rankedIds for selector', selector.id, 'with relationships', selector.data?.relationshipIDs);
-		// initialize ranked order from selector; clone to avoid mutating source
-		rankedIds = Array.isArray(selector.data?.relationshipIDs) ? [...selector.data.relationshipIDs] : [];
+		if (Array.isArray(existingRanks) && existingRanks.length > 0) {
+			// trust parent-provided rankings when present
+			rankedIds = existingRanks.slice();
+		} else {
+			rankedIds = Array.isArray(selector.data?.relationshipIDs) ? [...selector.data.relationshipIDs] : [];
+		}
 		// ensure selected remains valid
 		if (!selectedId || !rankedIds.includes(selectedId)) {
 			selectedId = rankedIds[0] ?? null;
@@ -61,12 +73,35 @@
 		_selectorInitializedId = selector.id;
 	}
 
+// helper: shallow array equality for ID arrays
+function arraysEqual(a: string[] | null | undefined, b: string[] | null | undefined) {
+    if (a === b) return true;
+    if (!a || !b) return false;
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+    return true;
+}
+
+// If parent-provided rankings arrive after initialization, update the local ordering.
+// `existingRanks === null` indicates loading; only apply when parent has provided an array.
+$: if (
+    selector &&
+    selector.id === _selectorInitializedId &&
+    Array.isArray(existingRanks) &&
+	existingRanks.length > 0 &&
+    !arraysEqual(rankedIds, existingRanks)
+) {
+    rankedIds = existingRanks.slice();
+    if (!selectedId || !rankedIds.includes(selectedId)) {
+        selectedId = rankedIds[0] ?? null;
+    }
+}
+
 	let selectedId: string | null = null;
 
 	const dispatch = createEventDispatcher();
 
 	function onClickItem(id: string) {
-		console.log('RelationshipChooser: selected relationship', id);
 		selectedId = id;
 		dispatch('select', { id });
 	}
@@ -89,7 +124,7 @@
 		{/if}
         {#if !isChosen}
             <Tooltip rich text="Add '{selector?.data?.name }'">
-                <IconButton icon="add_shopping_cart" on:click={() => selectedId && choose ? choose(relationshipSelectorID) : null} />
+                <IconButton icon="add_shopping_cart" on:click={() => handleChoose(relationshipSelectorID, rankedIds)} />
             </Tooltip>
         {:else}
             <Tooltip rich text="Remove '{selector?.data?.name }'">

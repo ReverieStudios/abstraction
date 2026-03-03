@@ -32,7 +32,7 @@ export const POST: RequestHandler = async (event) => {
 			.runTransaction<LockResult>(async (transaction) => {
 				const lock = await database.locks?.doc(assetID)?.read(transaction);
 				const relationshipSelector = await database.relationshipSelectors?.doc(assetID)?.read(transaction);
-				if (!lock?.data && !relationshipSelector?.data) {
+				if (!lock.exists && !relationshipSelector.exists) {
 					// unknown asset, not a relationship selector
 					return false;
 				}

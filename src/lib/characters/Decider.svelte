@@ -241,8 +241,7 @@
 					return choice.assetID === currentChosen;
 				}
 				if (choice.relationshipSelectorID) {
-					const sel = $selectorsById?.[choice.relationshipSelectorID];
-					return sel?.data?.relationshipIDs?.includes(currentChosen);
+					return choice.relationshipSelectorID === currentChosen;
 				}
 				return false;
 			});
@@ -295,7 +294,7 @@
 <svelte:head>
 	<title>{gameName ?? 'Game'} Character Builder</title>
 </svelte:head>
-<CartSidebar chosenAssets={chosenItems} {nodesById} />
+<CartSidebar chosenItems={chosenItems} {nodesById} />
 
 <div class="content mt3">
 	{#if list.length === 0}

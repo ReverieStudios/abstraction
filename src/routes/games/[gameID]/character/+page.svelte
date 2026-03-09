@@ -11,12 +11,13 @@
 	import { derived, type Readable } from 'svelte/store';
 	import { keyBy } from 'lodash-es';
 	import PurchasedAssetRow from '$lib/characters/PurchasedAssetRow.svelte';
+	import PurchasedRelationshipSelectorRow from '$lib/characters/PurchasedRelationshipSelectorRow.svelte';
 
 	const user: User = $page.data.user;
 
 	const sendNotification = getNotify();
 	const { gameID } = $page.params;
-	const character = database.characters?.doc(user?.uid ?? "");
+	const character: Readable<Docs.Character> | undefined = database.characters?.doc(user?.uid ?? "");
 
 	const characterAssets: Readable<Docs.Asset[]> = derived([character, database.assets], ([$character, $assets]) => {
 		if (!$character || !$assets) {
@@ -26,6 +27,45 @@
 		const characterAssets: string[] = $character?.data?.assets ?? [];
 		return characterAssets.map((id: string) => assetsByID[id]).filter(Boolean);
 	});
+
+	const characterAssetsByID: Readable<Record<string, Docs.Asset>> = derived(characterAssets, (assets) => {
+		return keyBy(assets, 'id');
+	});
+
+	const characterRelationshipSelectors: Readable<Docs.RelationshipSelector[]> = derived(
+		[character, database.relationshipSelectors],
+		([$character, $relationshipSelectors]) => {
+			if (!$character || !$relationshipSelectors) {
+				return [];
+			}
+			const selectorsByID = keyBy($relationshipSelectors, 'id');
+			const characterAssets: string[] = $character?.data?.assets ?? [];
+			return characterAssets.map((id: string) => selectorsByID[id]).filter(Boolean);
+		}
+	);
+
+	const characterRelationshipSelectorsByID = derived(characterRelationshipSelectors, (selectors) => {
+		return keyBy(selectors, 'id');
+	});
+
+	const characterRelationshipAssignmentsByID: Readable<Record<string, Docs.RelationshipAssignment>> = derived(
+		[characterRelationshipSelectorsByID, database.relationshipAssignments],
+		([$characterRelationshipSelectorsByID, $relationshipAssignments]) => {
+			if (!$characterRelationshipSelectorsByID || !$relationshipAssignments) {
+				return [];
+			}
+			const userAssignments = $relationshipAssignments.filter((assignment: Docs.RelationshipAssignment) => {
+				if (assignment.data.userID !== user?.uid) {
+					return false;
+				}
+				if ($characterRelationshipSelectorsByID[assignment.data.relationshipSelectorID]) {
+					return true;
+				}
+
+			});
+			return keyBy(userAssignments, 'id');
+		}
+	);
 
 	const hasLoaded = character?.hasLoaded;
 
@@ -67,8 +107,16 @@
 {/if}
 
 <div class="rounded bg-primary mb2 flex flex-column g1 divided">
-	{#each $characterAssets as asset}
-		<PurchasedAssetRow {asset} />
+	{#each character?.data?.assets ?? [] as itemID}
+		{#if $characterAssetsByID[itemID]}
+			<PurchasedAssetRow asset={$characterAssetsByID[itemID]} />
+		{/if}
+		{ #if $characterRelationshipSelectorsByID[itemID] }
+			<PurchasedRelationshipSelectorRow
+				selector={$characterRelationshipSelectorsByID[itemID]}
+				assignment={$characterRelationshipAssignmentsByID[$characterRelationshipSelectorsByID[itemID].id]}
+			/>
+		{/if}
 	{/each}
 </div>
 

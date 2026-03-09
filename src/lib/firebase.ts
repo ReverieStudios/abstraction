@@ -83,5 +83,22 @@ async function setToken(token: string) {
 		body: JSON.stringify({ token })
 	};
 
-	await fetch('/api/token', options);
+	try {
+		const res = await fetch('/api/token', options);
+		if (!res.ok) {
+			// If the server rejected the token, clear server cookies and sign out locally.
+			await fetch('/api/token', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json;charset=utf-8' },
+				body: JSON.stringify({ token: '' })
+			});
+			try {
+				await auth?.signOut?.();
+			} catch (ex) {
+				console.error('Error signing out after invalid token', ex);
+			}
+		}
+	} catch (ex) {
+		console.error('Network error when setting token', ex);
+	}
 }

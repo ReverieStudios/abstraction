@@ -13,10 +13,26 @@ export const POST: RequestHandler = async ({ request, cookies, url }) => {
 
     const payload = await request.json();
     const token: string = payload.token || '';
+    const cookieBase = { path: '/', httpOnly: true, sameSite: 'lax' as const, secure: true };
+
+    // If client posts an empty token explicitly, clear any server cookies.
+    if (!token) {
+        cookies.set('token', '', { ...cookieBase, maxAge: 0 });
+        cookies.set('user', '', { ...cookieBase, sameSite: 'strict', maxAge: 0 });
+        return json({ user: null });
+    }
 
     const { userToken, userData } = await loadUserData(token);
 
-    const cookieBase = { path: '/', httpOnly: true, sameSite: 'lax' as const, secure: true };
+    // Only persist valid, verifiable tokens. If token verification failed,
+    // clear any auth cookies on the server and return an error so the client
+    // can react (sign out / prompt for re-login).
+    if (!userToken) {
+        cookies.set('token', '', { ...cookieBase, maxAge: 0 });
+        cookies.set('user', '', { ...cookieBase, sameSite: 'strict', maxAge: 0 });
+        return json({ error: 'invalid_token' }, { status: 401 });
+    }
+
     cookies.set('token', token, cookieBase);
     cookies.set('user', userToken, { ...cookieBase, sameSite: 'strict' });
 

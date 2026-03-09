@@ -21,7 +21,7 @@ export const getComponent = (app, emulators) => {
 			decodeToken: async (token) => {
 				if (!token || token === 'null' || token === 'undefined') return null;
 				try {
-					return await app.auth().verifyIdToken(token);
+					return await auth.verifyIdToken(token);
 				} catch (err) {
 					console.error(err);
 					return null;

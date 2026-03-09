@@ -45,7 +45,7 @@ export const POST: RequestHandler = async (event) => {
 			}
 
 			const assets = await Promise.all(assetIDs.map((id) => database.assets?.doc(id)?.read()));
-			const assetWithName = assets.find((asset) => asset.data.enforceName);
+			const assetWithName = assets.find((asset) => asset.data?.enforceName ?? false);
 			await character.update(
 				{
 					name: assetWithName?.data?.enforceName ?? 'My Character',

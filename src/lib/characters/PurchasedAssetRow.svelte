@@ -1,8 +1,6 @@
 <script lang="ts" context="module">
 	import { database } from '$lib/database';
 	import type { Docs } from '$lib/database';
-
-	const assetTypes = database.assetTypes;
 </script>
 
 <script lang="ts">
@@ -13,7 +11,9 @@
 
 	export let asset: Docs.Asset | null = null;
 
-	const safeAssetTypes = assetTypes ?? readable([]);
+	// Read assetTypes here (instance scope) not in context=module, so it captures
+	// the value after setGameID has populated database.assetTypes.
+	const safeAssetTypes = database.assetTypes ?? readable([]);
 	const assetType = derived(safeAssetTypes, (types) => {
 		const typeId = asset?.data?.type;
 		return (types ?? []).find((type) => type.id === typeId);

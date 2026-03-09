@@ -14,12 +14,6 @@
 </script>
 
 <div class="items-center hover-bg-primary-light p2">
-    <span class="h3 flex items-center g1">
-        {selector.data.name}
-    </span>
-    {#if selector.data.summary}
-        <div class="h4">{selector.data.summary}</div>
-    {/if}
     {#if !assignment || !assignment.data?.assignedRelationships || assignment.data?.assignedRelationships.length === 0}
         <!-- No assigned relationships: show chooser but disable sorting/moving -->
         <div class="pl2">

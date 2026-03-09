@@ -13,6 +13,8 @@
 	import IconButton from 'lib/ui/IconButton.svelte';
 	import LockIcon from './LockIcon.svelte';
 	import FlagCheck from './FlagCheck.svelte';
+	import Modal from '$lib/ui/Modal.svelte';
+	import Button from '$lib/ui/Button.svelte';
 
 	export let gameID: string | null = null;
 	export let userID: string | null = null;
@@ -154,6 +156,8 @@ $: if (
 	}
 }
 	let selectedId: string | null = null;
+	let showHelp = false;
+	let closeModal: () => void;
 	const dispatch = createEventDispatcher();
 	function onClickItem(id: string) {
 		selectedId = id;
@@ -170,7 +174,7 @@ $: if (
     <div class="flex items-center g1">
 		<LockIcon {lockStatus} asset={selector} />
         <h2 class="mb1">{selector?.data?.name ?? 'Relationships'}</h2>
-		{#if !isChosen}<FlagCheck {gameID} {user} {requirements} {limitations} />{/if}
+		{#if !isChosen && allowSort}<FlagCheck {gameID} {user} {requirements} {limitations} />{/if}
 		{#if subselection.depth > 1 && subselection.loopDepth === 0 && subselection.total > 1}
 			<div class="h4">
 				{subselection.name} ({subselection.total} Choice{subselection.total > 1 ? 's' : ''})
@@ -179,15 +183,17 @@ $: if (
 			</div>
 		{/if}
 		<div class="ml-auto flex items-center g1">
-        {#if !isChosen}
-            <Tooltip rich text="Add '{selector?.data?.name }'">
-                <IconButton icon="add_shopping_cart" on:click={() => handleChoose(relationshipSelectorID, rankedIds)} />
-            </Tooltip>
-        {:else}
-            <Tooltip rich text="Remove '{selector?.data?.name }'">
-                <IconButton icon="remove_shopping_cart" on:click={unchoose} />
-            </Tooltip>
-        {/if}
+		{#if allowSort}
+			{#if !isChosen}
+				<Tooltip rich text="Add '{selector?.data?.name }'">
+					<IconButton icon="add_shopping_cart" on:click={() => handleChoose(relationshipSelectorID, rankedIds)} />
+				</Tooltip>
+			{:else}
+				<Tooltip rich text="Remove '{selector?.data?.name }'">
+					<IconButton icon="remove_shopping_cart" on:click={unchoose} />
+				</Tooltip>
+			{/if}
+		{/if}
 		</div>
     </div>
 	{#if !isChosen}
@@ -197,7 +203,14 @@ $: if (
 			{:else}
 				<div class="chooser-grid">
 					<div class="bg-surface">
-						<div class="flex items-center justify-between g1"><h3>Rank Your Choices Here</h3><IconButton icon="help_outline" on:click={() => dispatch('help')} /></div>
+						<div class="flex items-center justify-between g1">
+							{#if allowSort}
+								<h3>Rank Your Choices Here</h3>
+							{:else}
+								<h3>Your Rankings</h3>
+							{/if}
+							<IconButton icon="help_outline" on:click={() => (showHelp = true)} />
+						</div>
 						<div class="p2 rounded bg-secondary h3">
 									{#key listKey}
 									{#if allowSort}
@@ -258,7 +271,32 @@ $: if (
 		</div>
 	{/if}
 </div>
+
+<Modal title="About Rankings" open={showHelp} on:close={() => (showHelp = false)} let:closeModal={closeModal}>
+	<div class="help-body">
+		<p>You can rank your preferred relationships by dragging them
+			up and down, with your most preferred choice at the top.</p>
+		<p>After everyone has made their choices, the character creator will
+			assign relationships based on these rankings, doing its best to 
+			ensure that you get the relationships you want most 
+			while also balancing the needs of other participants.</p>
+		<p>When you've finished your character, but before relationships are assigned,
+			your character sheet will show you your rankings. After relationships are assigned,
+			the character sheet will update with which relationship(s) you got, and who you've
+			been matched with!
+		</p>
+	</div>
+	<svelte:fragment slot="actions">
+		<Button type="button" on:click={closeModal}>Close</Button>
+	</svelte:fragment>
+</Modal>
+
 <style>
+	.help-body {
+		max-height: 60vh;
+		overflow-y: auto;
+		padding: 0 0.5rem;
+	}
 	.chooser-grid { display: grid; grid-template-columns: 320px 1fr; gap: 1rem; }
 	.list { border-right: 1px solid var(--surface-2); padding-right: 0.5rem; }
 	ul { list-style: none; padding: 0; margin: 0; }

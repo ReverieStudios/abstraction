@@ -8,13 +8,14 @@
 <script lang="ts">
 	import { slide } from 'svelte/transition';
 	import RichViewer from '$lib/ui/RichViewer.svelte';
-	import { derived } from 'svelte/store';
+	import { derived, readable } from 'svelte/store';
 	import { storage } from '$lib/firebase';
 
 	export let asset: Docs.Asset | null = null;
 
-	const assetType = derived(assetTypes, (types) => {
-		const typeId = asset.data?.type;
+	const safeAssetTypes = assetTypes ?? readable([]);
+	const assetType = derived(safeAssetTypes, (types) => {
+		const typeId = asset?.data?.type;
 		return (types ?? []).find((type) => type.id === typeId);
 	});
 

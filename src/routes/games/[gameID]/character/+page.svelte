@@ -8,7 +8,8 @@
 	import { getNotify } from '$lib/ui/Notifications.svelte';
 	import type { User } from '$lib/database/types/User';
 	import IconButton from '$lib/ui/IconButton.svelte';
-	import { derived, type Readable } from 'svelte/store';
+	import { getContext } from 'svelte';
+	import { derived, type Readable, readable } from 'svelte/store';
 	import { keyBy } from 'lodash-es';
 	import PurchasedAssetRow from '$lib/characters/PurchasedAssetRow.svelte';
 	import PurchasedRelationshipSelectorRow from '$lib/characters/PurchasedRelationshipSelectorRow.svelte';
@@ -17,23 +18,26 @@
 
 	const sendNotification = getNotify();
 	const { gameID } = $page.params;
-	const character = database.characters?.doc(user?.uid ?? "");
+	const character = getContext('character');
 
-	const characterAssets: Readable<Docs.Asset[]> = derived([character, database.assets], ([$character, $assets]) => {
-		if (!$character || !$assets) {
-			return [];
+	const characterAssets: Readable<Docs.Asset[]> = derived(
+		[character ?? readable(null), database.assets ?? readable([])],
+		([$character, $assets]) => {
+			if (!$character || !$assets) {
+				return [];
+			}
+			const assetsByID = keyBy($assets, 'id');
+			const characterAssets: string[] = $character?.data?.assets ?? [];
+			return characterAssets.map((id: string) => assetsByID[id]).filter(Boolean);
 		}
-		const assetsByID = keyBy($assets, 'id');
-		const characterAssets: string[] = $character?.data?.assets ?? [];
-		return characterAssets.map((id: string) => assetsByID[id]).filter(Boolean);
-	});
+	);
 
 	const characterAssetsByID: Readable<Record<string, Docs.Asset>> = derived(characterAssets, (assets) => {
 		return keyBy(assets, 'id');
 	});
 
 	const characterRelationshipSelectors: Readable<Docs.RelationshipSelector[]> = derived(
-		[character, database.relationshipSelectors],
+		[character ?? readable(null), database.relationshipSelectors ?? readable([])],
 		([$character, $relationshipSelectors]) => {
 			if (!$character || !$relationshipSelectors) {
 				return [];
@@ -49,10 +53,10 @@
 	});
 
 	const characterRelationshipAssignmentsByID: Readable<Record<string, Docs.RelationshipAssignment>> = derived(
-		[characterRelationshipSelectorsByID, database.relationshipAssignments],
+		[characterRelationshipSelectorsByID ?? readable({}), database.relationshipAssignments ?? readable([])],
 		([$characterRelationshipSelectorsByID, $relationshipAssignments]) => {
 			if (!$characterRelationshipSelectorsByID || !$relationshipAssignments) {
-				return [];
+				return {};
 			}
 			const userAssignments = $relationshipAssignments.filter((assignment: Docs.RelationshipAssignment) => {
 				if (assignment.data.userID !== user?.uid) {

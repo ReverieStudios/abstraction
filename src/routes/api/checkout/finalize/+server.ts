@@ -2,6 +2,7 @@ import { json, type RequestHandler } from '@sveltejs/kit';
 import { store } from '$lib/firebase';
 import { database, setGameID } from '$lib/database';
 import { couldOrIsLocked, finalize } from '../_common';
+import type { Docs } from '$lib/database/types';
 
 export const POST: RequestHandler = async (event) => {
 	const payload = await event.request.json();
@@ -22,18 +23,18 @@ export const POST: RequestHandler = async (event) => {
 			}
 			const assetIDs = character.data.assets;
 			const locks = await Promise.all(
-				assetIDs.map((id) => database.locks?.doc(id)?.read(transaction))
+				assetIDs.map((id: string) => database.locks?.doc(id)?.read(transaction))
 			);
 
-			const anyQueued = locks.some((lock) => lock.data.claimsQueue.includes(uid));
+			const anyQueued = locks.some((lock: Docs.Lock) => lock.data.claimsQueue.includes(uid));
 			if (anyQueued) {
 				console.log('queued');
 				return false;
 			}
 
-			const hasAllLocks = locks.every((lock) => couldOrIsLocked(lock, uid));
+			const hasAllLocks = locks.every((lock: Docs.Lock) => couldOrIsLocked(lock, uid));
 			if (!hasAllLocks) {
-				const missingLocks = locks.filter((lock) => !couldOrIsLocked(lock, uid));
+				const missingLocks = locks.filter((lock: Docs.Lock) => !couldOrIsLocked(lock, uid));
 				console.log('not has all', missingLocks);
 				return false;
 			}
@@ -44,8 +45,8 @@ export const POST: RequestHandler = async (event) => {
 				await lock.save(newLock, transaction);
 			}
 
-			const assets = await Promise.all(assetIDs.map((id) => database.assets?.doc(id)?.read()));
-			const assetWithName = assets.find((asset) => asset.data?.enforceName ?? false);
+			const assets = await Promise.all(assetIDs.map((id: string) => database.assets?.doc(id)?.read()));
+			const assetWithName = assets.find((asset: Docs.Asset) => asset.data?.enforceName ?? false);
 			await character.update(
 				{
 					name: assetWithName?.data?.enforceName ?? 'My Character',
@@ -57,7 +58,7 @@ export const POST: RequestHandler = async (event) => {
 
 			return true;
 		})
-		.catch((ex) => {
+		.catch((ex: any) => {
 			console.error(ex);
 			return false;
 		});

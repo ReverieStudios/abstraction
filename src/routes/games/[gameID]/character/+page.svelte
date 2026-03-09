@@ -17,7 +17,7 @@
 
 	const sendNotification = getNotify();
 	const { gameID } = $page.params;
-	const character: Readable<Docs.Character> | undefined = database.characters?.doc(user?.uid ?? "");
+	const character = database.characters?.doc(user?.uid ?? "");
 
 	const characterAssets: Readable<Docs.Asset[]> = derived([character, database.assets], ([$character, $assets]) => {
 		if (!$character || !$assets) {
@@ -107,18 +107,18 @@
 {/if}
 
 <div class="rounded bg-primary mb2 flex flex-column g1 divided">
-	{#each character?.data?.assets ?? [] as itemID}
-		{#if $characterAssetsByID[itemID]}
-			<PurchasedAssetRow asset={$characterAssetsByID[itemID]} />
-		{/if}
-		{ #if $characterRelationshipSelectorsByID[itemID] }
-			<PurchasedRelationshipSelectorRow
-				selector={$characterRelationshipSelectorsByID[itemID]}
-				assignment={$characterRelationshipAssignmentsByID[$characterRelationshipSelectorsByID[itemID].id]}
-			/>
-		{/if}
+	{#each $characterAssets as asset}
+		<PurchasedAssetRow {asset} />
 	{/each}
 </div>
+<div class="rounded bg-primary mb2 flex flex-column g1 divided">
+	{#each $characterRelationshipSelectors as selector}
+		<PurchasedRelationshipSelectorRow
+			{selector}
+			assignment={$characterRelationshipAssignmentsByID[selector.id]}
+		/>
+	{/each}
+</div>	
 
 <style>
 	@media screen {

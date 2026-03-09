@@ -22,6 +22,8 @@
 	export let unchoose: (() => void) | null = null;
 	export let updateRankings: ((relationshipSelectorID: string, rankedIDs: string[]) => Promise<boolean>) | null = null;
 	export let existingRanks: string[] | null = null;
+// allow disabling drag-and-drop (render static list) when false
+export let allowSort: boolean = true;
     export let isChosen: boolean = false;
     export let subselection: {
 		name: string;
@@ -56,8 +58,15 @@
 	let selector: Docs.RelationshipSelector | null = null;
 	$: selector = $relationshipSelectors?.find((s: any) => s.id === relationshipSelectorID) ?? null;
 
-	let assetLock = database.locks?.doc("__missing__");
-	$: assetLock = database.locks?.doc(selector?.id ?? "__missing__");
+	// derive the lock for this selector from the locks collection to avoid
+	// calling `doc()` with an invalid/reserved id (which can throw).
+	const assetLock = derived([relationshipSelectors, database.locks], ([$relationshipSelectors, $locks]) => {
+		const sel = $relationshipSelectors?.find((s: any) => s.id === relationshipSelectorID) ?? null;
+		if (!sel) return null;
+		return ($locks ?? []).find((l: any) => l.id === sel.id) ?? null;
+	});
+
+	// requirements/limitations derived from the selected lock (may be null)
 	$: requirements = $assetLock?.data?.requirements;
 	$: limitations = $assetLock?.data?.limitations;
 
@@ -191,14 +200,15 @@ $: if (
 						<div class="flex items-center justify-between g1"><h3>Rank Your Choices Here</h3><IconButton icon="help_outline" on:click={() => dispatch('help')} /></div>
 						<div class="p2 rounded bg-secondary h3">
 									{#key listKey}
-									{#each rankedIds as id, i (id)}
-									<div animate:flip>
-										<SortableItem
-											propItemNumber={i}
-											bind:propData={rankedIds}
-											bind:propHoveredItemNumber={numberHoveredItem}
-										>
-											<div class="sortable-row"
+									{#if allowSort}
+										{#each rankedIds as id, i (id)}
+										<div animate:flip>
+											<SortableItem
+												propItemNumber={i}
+												bind:propData={rankedIds}
+												bind:propHoveredItemNumber={numberHoveredItem}
+											>
+												<div class="sortable-row"
 					 							on:pointerdown={() => (userHasTouched = true)}
 					 							on:touchstart={() => (userHasTouched = true)}
 					 							class:classHovered={numberHoveredItem === i}
@@ -206,9 +216,19 @@ $: if (
 												<MoveIcon propSize={12} />
 												{$relationshipsById?.[id]?.data?.name ?? id}
 											</div>
-										</SortableItem>
-									</div>
-									{/each}
+											</SortableItem>
+										</div>
+										{/each}
+									{:else}
+										{#each rankedIds as id, i (id)}
+											<div animate:flip>
+												<div class="sortable-row" on:click={() => onClickItem(id)}>
+													<MoveIcon propSize={12} />
+													{$relationshipsById?.[id]?.data?.name ?? id}
+												</div>
+											</div>
+										{/each}
+									{/if}
 									{/key}
 
 						</div>

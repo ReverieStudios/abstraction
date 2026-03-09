@@ -11,7 +11,7 @@
 	import { derived } from 'svelte/store';
 	import { storage } from '$lib/firebase';
 
-	export let asset: Docs.Asset;
+	export let asset: Docs.Asset | null = null;
 
 	const assetType = derived(assetTypes, (types) => {
 		const typeId = asset.data?.type;
@@ -33,10 +33,10 @@
 	};
 </script>
 
-{#if $assetType?.data?.hideOnCharacterSheet !== true}
+{#if asset && $assetType?.data?.hideOnCharacterSheet !== true}
 	<div class="items-center hover-bg-primary-light p2" out:slide|global>
 		<span class="h3 flex items-center g1">
-			{#if asset.data.image}
+			{#if asset?.data?.image}
 				{#await storage.getDownloadURL(asset.data.image) then url}
 					<div class="image" style="background-image:url({url})" />
 				{/await}

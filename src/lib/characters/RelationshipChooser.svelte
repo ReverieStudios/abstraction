@@ -24,9 +24,11 @@
 	export let unchoose: (() => void) | null = null;
 	export let updateRankings: ((relationshipSelectorID: string, rankedIDs: string[]) => Promise<boolean>) | null = null;
 	export let existingRanks: string[] | null = null;
-// allow disabling drag-and-drop (render static list) when false
-export let allowSort: boolean = true;
+	// allow disabling drag-and-drop (render static list) when false
+	export let allowSort: boolean = true;
     export let isChosen: boolean = false;
+	export let enableHelp: boolean = true;
+	
     export let subselection: {
 		name: string;
 		on: number;
@@ -209,7 +211,9 @@ $: if (
 							{:else}
 								<h3>Your Rankings</h3>
 							{/if}
-							<IconButton icon="help_outline" on:click={() => (showHelp = true)} />
+							{#if enableHelp}
+								<IconButton icon="help_outline" on:click={() => (showHelp = true)} />
+							{/if}
 						</div>
 						<div class="p2 rounded bg-secondary h3">
 									{#key listKey}

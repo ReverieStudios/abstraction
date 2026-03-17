@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Wrapper } from '$lib/boxLinks';
 	import { database } from '$lib/database/Database';
+	import type { Docs } from '$lib/database';
 	import type { Game } from '$lib/database/types/Game';
 	import Modal from '$lib/ui/Modal.svelte';
 	import type { User } from '$lib/database/types/User';
@@ -10,12 +11,12 @@
 	import { getNotify } from '$lib/ui/Notifications.svelte';
 	import { keyBy } from 'lodash-es';
 	import PurchasedAssetRow from '$lib/characters/PurchasedAssetRow.svelte';
-	import { derived } from 'svelte/store';
+	import PurchasedRelationshipSelectorRow from '$lib/characters/PurchasedRelationshipSelectorRow.svelte';
+	import { derived, readable } from 'svelte/store';
 	import type { Readable } from 'svelte/store';
-	import type { Asset } from '$lib/database/types/Assets';
-
+	
 	let characters = database.characters;
-	const assetsByID: Readable<Record<string, Asset>> = derived([database.assets], ([$assets]) => {
+	const assetsByID: Readable<Record<string, Docs.Asset>> = derived([database.assets ?? readable([])], ([$assets]) => {
 		if (!$assets) {
 			return {};
 		}
@@ -27,6 +28,25 @@
 	const user: User = $page.data.user;
 
 	$: characterID = $page.url.searchParams.get('character');
+
+	// Derived stores scoped to the currently-viewed character
+	$: viewedCharacter = $characters?.find((c) => c.id === characterID) ?? null;
+
+	const relationshipSelectorsByID: Readable<Record<string, Docs.RelationshipSelector>> = derived(
+		database.relationshipSelectors ?? readable([]),
+		($selectors) => keyBy($selectors ?? [], 'id')
+	);
+
+	$: characterRelationshipSelectors = viewedCharacter
+		? (viewedCharacter.data?.assets ?? [])
+				.map((id: string) => ($relationshipSelectorsByID ?? {})[id])
+				.filter(Boolean)
+		: [];
+
+	const relationshipAssignmentsByID: Readable<Record<string, Docs.RelationshipAssignment>> = derived(
+		database.relationshipAssignments ?? readable([]),
+		($assignments) => keyBy($assignments ?? [], 'id')
+	);
 
 	const sendNotification = getNotify();
 	const deleteCharacter = (userID: string) => {
@@ -77,19 +97,27 @@
 
 <Modal open={characterID} on:close={() => goto('?')}>
 	{#if $charactersLoaded}
-		<h2>{$characters?.find((c) => c.id === characterID)?.data?.name ?? 'No Name'}</h2>
+		<h2>{viewedCharacter?.data?.name ?? 'No Name'}</h2>
 
-		<div class="rounded bg-primary mb2">
-			<div class="flex flex-column g1">
-			{#each $characters?.find((c) => c.id === characterID)?.data?.assets ?? [] as asset}
+		<div class="rounded bg-primary mb2 flex flex-column g1 divided">
+			{#each viewedCharacter?.data?.assets ?? [] as asset}
 				{#if $assetsByID[asset]}
-					<PurchasedAssetRow
-						asset={$assetsByID[asset]}
-					/>
+					<PurchasedAssetRow asset={$assetsByID[asset]} />
 				{/if}
 			{/each}
-			</div>
 		</div>
+
+		{#if characterRelationshipSelectors.length > 0}
+			<div class="rounded bg-primary mb2 flex flex-column g1 divided">
+				{#each characterRelationshipSelectors as selector}
+					<PurchasedRelationshipSelectorRow
+						{selector}
+						assignment={$relationshipAssignmentsByID[selector.id] ?? null}
+						enableHelp={false}
+					/>
+				{/each}
+			</div>
+		{/if}
 	{/if}
 </Modal>
 

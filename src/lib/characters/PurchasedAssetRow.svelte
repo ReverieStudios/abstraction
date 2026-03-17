@@ -19,7 +19,7 @@
 		return (types ?? []).find((type) => type.id === typeId);
 	});
 
-	const getFields = (asset: Docs.Asset, type: Docs.AssetType) => {
+	const getFields = (asset: Docs.Asset, type: Docs.AssetType | undefined) => {
 		if (!asset || !type) {
 			return [];
 		}

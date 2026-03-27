@@ -24,7 +24,7 @@
 	export let assetTypes = database.assetTypes;
 
 	$: editingType = $page.url.searchParams.get('assetType');
-	$: editing = $assetTypes.find((doc) => doc.id === editingType);
+	$: editing = $assetTypes?.find((doc) => doc.id === editingType);
 
 	const deselect = () => {
 		goto('?');
@@ -36,18 +36,18 @@
 		{ text: 'Character Name', value: 'character_name' }
 	];
 
-	const updateType = async (value: AssetType) => {
+	const updateType = async (value: AssetType): Promise<any> => {
 		const updatedFields = new Set((value.fields || []).map((f) => f.title));
-		const removedFields = (editing.data.fields ?? []).filter((f) => !updatedFields.has(f.title));
+		const removedFields = (editing?.data.fields ?? []).filter((f) => !updatedFields.has(f.title));
 		const removedCharName = removedFields.find((f) => f.type === 'character_name');
 		const removedFieldNames = removedFields
 			.filter((f) => f.type !== 'character_name')
 			.map((f) => f.title);
 
 		const transaction = store.writeBatch();
-		if (removedFields.length > 0) {
+		if (removedFields.length > 0 && database?.assets) {
 			const assetsOfType = await database.assets
-				.withQueries({ field: 'type', op: '==', value: editing.id })
+				.withQueries({ field: 'type', op: '==', value: editing?.id })
 				.read();
 
 			const getUpdate = (asset: Docs.Asset) => {
@@ -61,24 +61,24 @@
 			};
 
 			assetsOfType
-				.filter((asset) => {
+				.filter((asset: Docs.Asset) => {
 					return (
 						(removedCharName && asset.data.enforceName != null) ||
 						removedFieldNames.some((fieldName) => asset?.data?.fields?.[fieldName] != null)
 					);
 				})
-				.forEach((asset) => {
+				.forEach((asset: Docs.Asset) => {
 					asset.update(getUpdate(asset), transaction);
 				});
 		}
 
-		editing.update(value, transaction);
+		editing?.update(value, transaction);
 		return await transaction.commit();
 	};
 
-	const getOtherAssetTypes = (editing: Docs.AssetType) => {
-		const otherTypes = $assetTypes.filter((type) => type.id !== editing.id);
-		return otherTypes.map((type) => ({ text: type.data.name, value: type.id }));
+	const getOtherAssetTypes = (editing: Docs.AssetType | undefined) => {
+		const otherTypes = $assetTypes?.filter((type) => type.id !== editing?.id);
+		return otherTypes?.map((type) => ({ text: type.data.name, value: type.id }));
 	};
 </script>
 
@@ -92,7 +92,7 @@
 	on:close={deselect}
 	let:closeModal
 >
-	<Form initialValues={editing.data} onSubmit={updateType} afterSubmit={closeModal}>
+	<Form initialValues={editing?.data} onSubmit={updateType} afterSubmit={closeModal}>
 		<div class="flex flex-column g2">
 			<TextField class="flex-auto" label="Name" name="name" />
 			<TextField class="flex-auto" label="Description" name="description" />

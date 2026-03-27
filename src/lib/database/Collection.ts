@@ -169,10 +169,11 @@ export class Collection<T = Object> {
 				this.subscribers.splice(index, 1);
 			}
 			if (this.subscribers.length === 0) {
-				// TODO delay stopping watch for N seconds in case next page wants same data?
-				console.log('stop watching doc', this.path);
-				this.stop();
-				this.stop = noop;
+				if (this.docs.length === 0) {
+					console.log('stop watching doc', this.path);
+					this.stop();
+					this.stop = noop;
+				}
 			}
 		};
 	}

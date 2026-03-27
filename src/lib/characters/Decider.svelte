@@ -2,38 +2,43 @@
 	import { database } from '$lib/database';
 	import { slide } from 'svelte/transition';
 	import { groupByParentId, START_ID } from '$lib/DecisionTree/helpers';
-	import { isAssetNode, isStartNode } from '$lib/database/types/Decision';
-	import type { KeyGroups, KeyMaps } from '$lib/database/types';
-	import type { Readable } from 'svelte/store';
+	import { isAssetNode, isRelationshipNode, isStartNode } from '$lib/database/types/Decision';
+	import type { Docs, KeyGroups, KeyMaps } from '$lib/database/types';
+	import { derived, type Readable } from 'svelte/store';
 	import Button from '$lib/ui/Button.svelte';
 	import { goto } from '$app/navigation';
 	import AssetSection from './AssetSection.svelte';
+	import RelationshipSection from './RelationshipSection.svelte';
 	import type { User } from '$lib/database/types/User';
 	import { keyBy } from 'lodash-es';
 	import { dev } from '$app/environment';
 	import CartSidebar from 'lib/CartSidebar.svelte';
+	import type { Dictionary } from 'lodash';
 
-	export let gameName: string = null;
-	export let gameID: string = null;
-	export let userID: string = null;
-	export let user: User = null;
-	export let chosenAssets: Readable<string[]>;
+	export let gameName: string | null = null;
+	export let gameID: string | null = null;
+	export let userID: string | null = null;
+	export let user: User | null = null;
+	export let chosenItems: Readable<string[]>;
 	export let secureLock: (assetID: string, depth: number) => Promise<boolean>;
 	export let releaseLocks: (assetIDs: string[]) => Promise<boolean>;
-	export let finalize: () => Promise<boolean> = null;
+	export let updateRankings: ((relationshipSelectorID: string, rankedIDs: string[]) => Promise<boolean>) | null = null;
+	export let finalize: (() => Promise<boolean>) | null = null;
 
 	let decisionTree = database.decisionTree;
+
+	const selectorsById: Readable<Dictionary<Docs.RelationshipSelector>> = derived(database.relationshipSelectors, ($sels) => keyBy($sels ?? [], 'id'));
 
 	$: nodesByParentId = groupByParentId($decisionTree) as KeyGroups.Decision;
 	$: nodesById = keyBy($decisionTree, 'id') as KeyMaps.Decision;
 	$: allVariables = Array.from(
-		$decisionTree.reduce((acc, node) => {
-			const vars = isAssetNode(node.data) ? node.data?.setVariables?.map((v) => v.name) ?? [] : [];
+		($decisionTree ?? []).reduce((acc: Set<string>, node) => {
+			const vars: string[] = isAssetNode(node.data) ? node.data?.setVariables?.map((v) => v.name) ?? [] : [];
 			vars.forEach((v) => acc.add(v));
 			return acc;
-		}, new Set())
-	);
-	$: variableSetup = allVariables.map((name) => `let ${name} = 0;`).join('\n');
+		}, new Set<string>())
+	) as string[];
+	$: variableSetup = allVariables.map((name) => `let ${name} = 0;`).join('\n') as string;
 
 	let loading = false;
 
@@ -46,14 +51,14 @@
 
 	const unchoose = (depth: number) => () => {
 		if (!loading) {
-			const freed = $chosenAssets.slice(depth);
+			const freed = $chosenItems.slice(depth);
 			loading = true;
 			releaseLocks(freed).finally(() => (loading = false));
 		}
 	};
 
 	const getVariableProcessor = (chosenIDs: string[]) => {
-		const variables = chosenIDs.reduce((acc, id) => {
+		const variables = chosenIDs.reduce((acc: Record<string, string | number>, id) => {
 			const node = nodesById[id];
 			if (node && isAssetNode(node.data)) {
 				(node.data.setVariables ?? []).forEach((variable) => {
@@ -72,9 +77,10 @@
 		);
 	};
 
-	interface DecisionAsset {
+	interface DecisionElement {
 		decisionID: string;
-		assetID: string;
+		assetID?: string;
+		relationshipSelectorID?: string;
 	}
 	const nextIsStartNode = (root: string) => {
 		const decisions = nodesByParentId[root] ?? [];
@@ -106,9 +112,17 @@
 			if (isStartNode(node.data)) {
 				return true;
 			}
-			return (
+			if (isAssetNode(node.data)) {
+				return (
 				!childConditions[node.data.assetID] || variableProcessor(childConditions[node.data.assetID])
 			);
+			}
+			if (isRelationshipNode(node.data)) {
+				return (
+					!childConditions[node.data.relationshipSelectorID] ||
+					variableProcessor(childConditions[node.data.relationshipSelectorID])
+				);
+			};
 		});
 
 		if (children.length === 0) {
@@ -123,7 +137,7 @@
 		return loop.options.filter((opt) => endChoices.every((chosenEnd) => !opt.includes(chosenEnd)));
 	};
 
-	const getAssetChildren = (
+	const getChildren = (
 		byParent: KeyGroups.Decision,
 		root: string,
 		chosenIDs: string[]
@@ -132,7 +146,7 @@
 		options: string[];
 		depth: number;
 		name: string;
-		children: DecisionAsset[];
+		children: DecisionElement[];
 	} => {
 		const decisions = nodesByParentId[root] ?? [];
 		const childConditions = nodesById[root]?.data?.childConditions || {};
@@ -143,7 +157,7 @@
 				depth: getMaxTreeDepth(decisions[0].id, true),
 				options: enumerateOptions(decisions[0].id, chosenIDs),
 				name: decisions[0].data.name,
-				children: getAssetChildren(byParent, decisions[0].id, chosenIDs).children
+				children: getChildren(byParent, decisions[0].id, chosenIDs).children
 			};
 		}
 		const children = decisions.flatMap((decision) => {
@@ -155,6 +169,16 @@
 				return {
 					decisionID: decision.id,
 					assetID: decision.data.assetID
+				};
+			}
+			if (
+				isRelationshipNode(decision.data) &&
+				(!childConditions[decision.data.relationshipSelectorID] ||
+					variableProcessor(childConditions[decision.data.relationshipSelectorID]))
+			) {
+				return {
+					decisionID: decision.id,
+					relationshipSelectorID: decision.data.relationshipSelectorID
 				};
 			}
 			return [];
@@ -175,6 +199,7 @@
 		// name: choices[i].name;
 		chosen?: string;
 		children: string[];
+		childType?: 'asset' | 'relationship';
 		loop: { name: string; on: number; total: number; depth: number; loopDepth: number };
 	}
 	let list: ListItem[] = [];
@@ -191,10 +216,10 @@
 		const newList: ListItem[] = [];
 		const chosenIDs: string[] = [];
 
-		let pointer: string = START_ID;
-		let loops: MultiSelect = null;
+		let pointer: string | null | undefined = START_ID;
+		let loops: MultiSelect | null = null;
 		while (pointer) {
-			const nextNodes = getAssetChildren(nodesByParentId, pointer, chosenIDs);
+			const nextNodes = getChildren(nodesByParentId, pointer, chosenIDs);
 			if (loops === null) {
 				loops = {
 					name: nextNodes.name,
@@ -206,21 +231,30 @@
 					prior: []
 				};
 			}
-			const remainingOptions = getRemainingOptions(loops).join('--');
+			const remainingOptions: string = getRemainingOptions(loops).join('--');
 			const assetChoices = nextNodes.children.filter((child) =>
 				remainingOptions.includes(child.decisionID)
 			);
-			const chosen = assetChoices.find(
-				(choice) => choice.assetID === $chosenAssets[newList.length]
-			);
+			const chosen = assetChoices.find((choice) => {
+				const currentChosen = $chosenItems[newList.length];
+				if (!currentChosen) return false;
+				if (choice.assetID) {
+					return choice.assetID === currentChosen;
+				}
+				if (choice.relationshipSelectorID) {
+					return choice.relationshipSelectorID === currentChosen;
+				}
+				return false;
+			});
 			if (chosen) {
 				chosenIDs.push(chosen.decisionID);
 			}
 			newList.push({
 				id: `${pointer}-${loops.loops}`,
 				depth: newList.length,
-				chosen: chosen?.assetID,
-				children: assetChoices.map((c) => c.assetID),
+				chosen: chosen?.assetID ?? chosen?.relationshipSelectorID ?? undefined,
+				children: assetChoices.map((c) => c.assetID ?? c.relationshipSelectorID ?? ''),
+				childType: assetChoices.length > 0 && assetChoices[0].relationshipSelectorID ? 'relationship' : 'asset',
 				loop: {
 					name: loops.name,
 					on: loops.total - loops.loops + 1,
@@ -229,6 +263,11 @@
 					loopDepth: loops.prior.length % loops.depth
 				}
 			});
+				console.log('Decider: added list item', {
+					id: `${pointer}-${loops.loops}`,
+					childCount: assetChoices.length,
+					childType: assetChoices.length > 0 && assetChoices[0].relationshipSelectorID ? 'relationship' : 'asset'
+				});
 
 			if (loops.loops > 1) {
 				if (chosen) {
@@ -256,7 +295,7 @@
 <svelte:head>
 	<title>{gameName ?? 'Game'} Character Builder</title>
 </svelte:head>
-<CartSidebar {chosenAssets} {nodesById} />
+<CartSidebar chosenItems={chosenItems} />
 
 <div class="content mt3">
 	{#if list.length === 0}
@@ -282,16 +321,30 @@
 			</div>
 		{:else}
 			<div transition:slide|global={{ duration: 200 }}>
-				<AssetSection
-					{gameID}
-					{user}
-					{userID}
-					assetIDs={item.children}
-					chosenID={item.chosen}
-					choose={choose(item.depth)}
-					unchoose={unchoose(item.depth)}
-					subselection={item.loop}
-				/>
+				{#if item.childType === 'asset'}
+					<AssetSection
+						{gameID}
+						{user}
+						{userID}
+						assetIDs={item.children}
+						chosenID={item.chosen}
+						choose={choose(item.depth)}
+						unchoose={unchoose(item.depth)}
+						subselection={item.loop}
+					/>
+				{:else}
+					<RelationshipSection
+						{gameID}
+						{user}
+						{userID}
+						relationshipSelectorIDs={item.children}
+						chosenID={item.chosen}
+						choose={choose(item.depth)}
+						unchoose={unchoose(item.depth)}
+						updateRankings={updateRankings}
+						subselection={item.loop}
+					/>
+				{/if}
 			</div>
 		{/if}
 	{/each}

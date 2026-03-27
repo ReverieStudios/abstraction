@@ -12,7 +12,7 @@
 	import RichEditor from '$lib/form/RichEditor.svelte';
 	import { Wrapper, Item } from '$lib/boxLinks';
 	import { slide } from 'svelte/transition';
-	import { groupBy, join } from 'lodash-es';
+	import { groupBy } from 'lodash-es';
 	import { database } from '$lib/database';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
@@ -21,6 +21,7 @@
 	import ImageSelector from '$lib/form/ImageSelector.svelte';
 	import CopyBox from '$lib/ui/CopyBox.svelte';
 	import FavoriteList from '$lib/FavoriteList.svelte';
+	import type { FieldValue, WithFieldValue } from 'firebase/firestore';
 
 	const game: Game = $page.data.game;
 	const gameID: string = $page.data.gameID;
@@ -35,9 +36,9 @@
 	$: favoriteCountById = $favoriteCounts?.data ?? {};
 
 	const getSubAssets = (parentID: string, typeID: string) =>
-		$assets.filter((asset) => asset.data.type === typeID && asset.data.subtype === parentID);
+		$assets?.filter((asset) => asset.data.type === typeID && asset.data.subtype === parentID);
 
-	$: flagsForCheckboxes = $flags.map((flag) => ({ label: flag.data.name, value: flag.id }));
+	$: flagsForCheckboxes = $flags?.map((flag) => ({ label: flag.data.name, value: flag.id }));
 
 	interface Editing {
 		asset?: Docs.Asset;
@@ -45,7 +46,7 @@
 		hasExtraFields?: boolean;
 	}
 
-	let editing: Editing = null;
+	let editing: Editing | null = null;
 	$: typeId = $page.url.searchParams.get('type');
 	$: subtypeId = $page.url.searchParams.get('subtype');
 	$: assetsOfType = typeId ? assetsByType[typeId] ?? [] : [];
@@ -53,7 +54,12 @@
 	$: assetId = $page.url.searchParams.get('asset');
 	$: favoriteId = $page.url.searchParams.get('favorite');
 
-	const getUrl = (typeId?: string, subtypeId?: string, assetId?: string, favoriteId?: string) => {
+	const getUrl = (
+		typeId?: string | null,
+		subtypeId?: string | null,
+		assetId?: string | null,
+		favoriteId?: string
+	) => {
 		const parts = [
 			typeId ? `type=${typeId}` : null,
 			subtypeId ? `subtype=${subtypeId}` : null,
@@ -67,9 +73,9 @@
 	$: {
 		editing = null;
 		if (assetId) {
-			const asset: Docs.Asset = $assets.find((asset) => asset.id === assetId);
+			const asset: Docs.Asset | undefined = $assets?.find((asset) => asset.id === assetId);
 			if (asset) {
-				const type = $assetTypes.find((type) => type.id === asset.data.type);
+				const type = $assetTypes?.find((type) => type.id === asset.data.type);
 				if (type) {
 					const hasExtraFields = (type.data.fields ?? []).length > 0;
 
@@ -83,11 +89,14 @@
 		}
 	}
 
-	$: assetLock = editing?.asset ? database.locks.doc(editing.asset.id) : null;
+	$: assetLock = editing?.asset ? database?.locks?.doc(editing.asset.id) : null;
 	$: lock = $assetLock;
 
-	const notifyAssetChange = (assetID, assetName) => {
-		if (!game.discordID) {
+	const notifyAssetChange = (
+		assetID: string | undefined,
+		assetName: FieldValue | WithFieldValue<string | undefined>
+	) => {
+		if (!game.discordID || assetID == undefined) {
 			return Promise.resolve();
 		}
 		return fetch('/api/assets/notifyChange', {
@@ -110,20 +119,20 @@
 		modified: Record<string, boolean>
 	) => {
 		return Promise.all([
-			modified.asset && editing.asset.update(values.asset),
-			modified.lock && lock.update(values.lock),
-			notifyAssetChange(editing.asset.id, values.asset.name)
+			modified.asset && editing?.asset?.update(values.asset),
+			modified.lock && lock?.update(values.lock),
+			notifyAssetChange(editing?.asset?.id, values.asset.name)
 		]);
 	};
 
 	const removeAsset = (asset: Docs.Asset) => {
-		return Promise.all([asset.remove(), database.locks.doc(asset.id).remove()]);
+		return Promise.all([asset.remove(), database?.locks?.doc(asset.id)?.remove()]);
 	};
 
 	const getParentAssets = (typeID: string) =>
 		(assetsByType[typeID] ?? []).map((asset) => ({ text: asset.data.name, value: asset.id }));
 
-	let emails: { email: string; name: string }[] = null;
+	let emails: { email: string; name: string }[] | null = null;
 	const fetchEmailList = (assetID: string) => {
 		fetch('/api/character/usersWithAsset', {
 			method: 'POST',
@@ -151,19 +160,19 @@
 	<Modal open={emails} on:close={() => (emails = null)}>
 		<h2>Emails</h2>
 		<ul>
-			{#each emails as { email, name }}
+			{#each emails ?? [] as { email, name }}
 				<li>{name} - {email}</li>
 			{/each}
 		</ul>
-		<CopyBox content={emails.map(({ email }) => email).join(';')} />
+		<CopyBox content={emails?.map(({ email }) => email).join(';')} />
 	</Modal>
 
 	<Modal open={editing} on:close={() => goto(getUrl(typeId, subtypeId))} let:closeModal>
-		<h2>Editing: {editing.asset?.data.name}</h2>
+		<h2>Editing: {editing?.asset?.data.name}</h2>
 
 		<Form
 			class="flex flex-column g2"
-			initialValues={{ asset: editing.asset?.data, lock: lock?.data }}
+			initialValues={{ asset: editing?.asset?.data, lock: lock?.data }}
 			multiform
 			onSubmit={updateAsset}
 			afterSubmit={closeModal}
@@ -173,7 +182,7 @@
 				<ImageSelector name="asset.image" slot="over" />
 			</div>
 			<RichEditor label="Summary" name="asset.summary" />
-			{#if editing.type.data.parentTypeID}
+			{#if editing?.type?.data.parentTypeID}
 				<Select
 					items={getParentAssets(editing.type.data.parentTypeID)}
 					name="asset.subtype"
@@ -181,7 +190,7 @@
 				/>
 			{/if}
 
-			{#each editing.type.data.fields ?? [] as field (field.title)}
+			{#each editing?.type?.data.fields ?? [] as field (field.title)}
 				{#if field.type === 'markdown'}
 					<RichEditor label={field.title} name="asset.fields.{field.title}" />
 				{:else if field.type === 'plain'}
@@ -224,7 +233,7 @@
 	</Modal>
 
 	<Modal open={favoriteId} on:close={() => goto(getUrl(typeId, subtypeId))} let:closeModal>
-		<h2>Favorites: {$assets.find((asset) => asset.id === favoriteId).data.name}</h2>
+		<h2>Favorites: {$assets?.find((asset) => asset.id === favoriteId)?.data.name}</h2>
 
 		<FavoriteList assetId={favoriteId} />
 
@@ -264,8 +273,8 @@
 								{#each subTypes[type.id] as subType}
 									{@const subAssets = getSubAssets(asset.id, subType.id)}
 									<div>
-										<h3>{subType.data.name} ({subAssets.length})</h3>
-										{#each subAssets as subAsset}
+										<h3>{subType.data.name} ({subAssets?.length})</h3>
+										{#each subAssets ?? [] as subAsset}
 											<div class="flex items-center justify-center hover-bg-primary-dark">
 												<a href={getUrl(type.id, subtypeId, subAsset.id)} class="pl2 py1 flex-auto">
 													<h4 class="bold h4 my1 text-black">{subAsset.data.name}</h4>
@@ -288,7 +297,7 @@
 													name: t,
 													summary: ''
 												})}
-												afterCreate={(id) => (id ? database.locks.doc(id).update({ claimLimit: 0 }) : Promise.resolve())}
+												afterCreate={(id) => (id ? database?.locks?.doc(id)?.update({ claimLimit: 0 }) : Promise.resolve())}
 											/>
 										</div>
 									</div>
@@ -303,7 +312,7 @@
 							parent={assets}
 							id={() => null}
 							data={(t) => ({ type: type.id, name: t, summary: '' })}
-							afterCreate={(id) => (id ? database.locks.doc(id).update({ claimLimit: 0 }) : Promise.resolve())}
+							afterCreate={(id) => (id ? database?.locks?.doc(id)?.update({ claimLimit: 0 }) : Promise.resolve())}
 						/>
 					</div>
 				</div>

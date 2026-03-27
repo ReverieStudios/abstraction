@@ -4,13 +4,14 @@
 	import type { Game } from '$lib/database/types/Game';
 	import { database } from '$lib/database';
 	import { isPlayer } from '$lib/permissions';
+	import { getContext } from 'svelte';
 
 	const { gameID } = $page.params;
 	const game: Game = $page.data.game;
 	const userID: string = $page.data.userID;
 
 	const user = database.users.doc(userID);
-	const character = database.characters?.doc(userID);
+	const character = getContext('character');
 	$: userIsPlayer = isPlayer($user?.data?.roles ?? {}, gameID);
 	$: characterPurchased = userIsPlayer && ($character?.data?.purchased ?? false);
 

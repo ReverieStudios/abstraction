@@ -14,6 +14,10 @@ import type { Game } from './types/Game';
 import type { Lock } from './types/Lock';
 import type { User } from './types/User';
 import type { Token } from './types/Token';
+import type { Relationship } from './types/Relationships';
+import type { RelationshipType } from './types/RelationshipTypes';
+import type { RelationshipSelector } from './types/RelationshipSelectors';
+import type { RelationshipAssignment } from './types/RelationshipAssignments';
 
 interface Database {
 	games: Collection<Game>;
@@ -28,6 +32,12 @@ interface Database {
 	assetTypes?: DocumentMap<AssetType> | null;
 	characters?: Collection<Character> | null;
 	decisionTree?: DocumentMap<Decision> | null;
+	
+	relationships?: Collection<Relationship> | null;
+	relationshipTypes?: DocumentMap<RelationshipType> | null;
+	relationshipSelectors?: Collection<RelationshipSelector> | null;
+	relationshipAssignments?: Collection<RelationshipAssignment> | null;
+
 	favorites?: CollectionDocument<Favorites> | null;
 	allFavorites?: Collection<Favorites> | null;
 	favoriteCounts?: CollectionDocument<FavoriteCounts> | null;
@@ -57,7 +67,7 @@ export const setUserID = (userID: string) => {
 const updateDatabase = () => {
 	const { gameID, userID } = last;
 	
-	database.game = gameID ? new CollectionDocument(`games/${gameID}`, null) : null;
+	database.game = gameID ? new CollectionDocument(`games/${gameID}`) : null;
 	database.assets = gameID
 		? new Collection(`games/${gameID}/assets`, { sortBy: 'name', cacheField: 'lastUpdated' })
 		: null;
@@ -66,6 +76,14 @@ const updateDatabase = () => {
 		? new Collection(`games/${gameID}/characters`, { sortBy: 'name' })
 		: null;
 	database.decisionTree = gameID ? new DocumentMap(`games/${gameID}/data/decisionTree`) : null;
+	
+	database.relationships =  gameID
+		? new Collection(`games/${gameID}/relationships`, { sortBy: 'name', cacheField: 'lastUpdated' })
+		: null;
+	database.relationshipTypes = gameID ? new DocumentMap(`games/${gameID}/data/relationshipTypes`, 'name') : null;
+	database.relationshipSelectors = gameID ? new Collection(`games/${gameID}/relationshipSelectors`, { sortBy: 'name', cacheField: 'lastUpdated' }) : null;
+	database.relationshipAssignments = gameID ? new Collection(`games/${gameID}/relationshipAssignments`, { sortBy: 'relationshipSelectorID'}) : null;
+	
 	database.favoriteCounts = gameID
 		? new CollectionDocument(`games/${gameID}/data/favorites`)
 		: null;

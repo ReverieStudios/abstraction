@@ -15,7 +15,7 @@ export namespace Asset {
 	}
 }
 
-export const getFields = (asset: Docs.Asset, type: Docs.AssetType, summaryLabel = true) => {
+export const getFields = (asset: Docs.Asset | null, type: Docs.AssetType, summaryLabel = true): {label: string; text: string; type: string; showAfterChosen: boolean}[] => {
 	if (!asset || !type) {
 		return [];
 	}

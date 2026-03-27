@@ -2,13 +2,13 @@
 	import IconButton from '$lib/ui/IconButton.svelte';
 
 	export let label = null;
-	export let content = null;
+	export let content: string | null = null;
 	export let iconOnly = false;
 
 	const doCopy = () => {
 		// @ts-ignore
 		navigator.permissions.query({ name: 'clipboard-write' }).then((result) => {
-			if (result.state == 'granted' || result.state == 'prompt') {
+			if (content && (result.state == 'granted' || result.state == 'prompt')) {
 				navigator.clipboard.writeText(content);
 			}
 		});

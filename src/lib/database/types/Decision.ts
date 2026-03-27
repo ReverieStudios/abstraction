@@ -1,4 +1,5 @@
-export type Decision = Decision.StartNode | Decision.AssetNode;
+export type Decision = Decision.StartNode | Decision.AssetNode | Decision.RelationshipNode;
+
 export namespace Decision {
 	interface DecisionNode {
 		treeID: string;
@@ -18,6 +19,12 @@ export namespace Decision {
 		parentID: string;
 		setVariables?: Variable[];
 	}
+
+	export interface RelationshipNode extends DecisionNode {
+		relationshipSelectorID: string;
+		parentID: string;
+		setVariables?: Variable[];
+	}
 }
 
 export const isStartNode = (node: Decision): node is Decision.StartNode => {
@@ -26,4 +33,8 @@ export const isStartNode = (node: Decision): node is Decision.StartNode => {
 
 export const isAssetNode = (node: Decision): node is Decision.AssetNode => {
 	return (node as Decision.AssetNode).assetID !== undefined;
+};
+
+export const isRelationshipNode = (node: Decision): node is Decision.RelationshipNode => {
+	return (node as Decision.RelationshipNode).relationshipSelectorID !== undefined;
 };

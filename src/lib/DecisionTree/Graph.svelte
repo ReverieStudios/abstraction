@@ -3,7 +3,7 @@
 	import { stratify, cluster } from 'd3-hierarchy';
 	import { dragViewport } from '$lib/actions/dragViewport';
 	import { writable } from 'svelte/store';
-	import { isAssetNode, isStartNode } from '$lib/database/types/Decision';
+	import { isAssetNode, isRelationshipNode, isStartNode } from '$lib/database/types/Decision';
 	import { getNodeName, type ExitNode, type TreeNode } from './helpers';
 	import { keyBy } from 'lodash-es';
 	import type { State } from './helpers';
@@ -11,6 +11,7 @@
 
 	export let nodes: Docs.Decision[];
 	export let assetsById: KeyMaps.Asset;
+	export let relationshipSelectorsById: KeyMaps.RelationshipSelector;
 	export let state: Writable<State>;
 
 	$: selected = $state.selected;
@@ -33,7 +34,7 @@
 		const hierarchical = stratify()
 			.id((d: Docs.Decision) => d.id)
 			.parentId((d: Docs.Decision) => {
-				if (isAssetNode(d.data)) {
+				if (isAssetNode(d.data) || isRelationshipNode(d.data)) {
 					return d.data.parentID;
 				} else if (isExitNode(d)) {
 					if (d.id !== 'fake_root') {
@@ -157,7 +158,7 @@
 							on:click={() => selectNode(data)}
 						>
 							<circle r={6} />
-							<text y="20" class="nodeName">{getNodeName(data, assetsById)}</text>
+							<text y="20" class="nodeName">{getNodeName(data, assetsById, relationshipSelectorsById)}</text>
 						</g>
 					{/each}
 				</g>

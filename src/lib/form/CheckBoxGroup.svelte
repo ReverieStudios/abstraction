@@ -4,7 +4,7 @@
 	import Fieldset from '$lib/ui/Fieldset.svelte';
 
 	export let name: string;
-	export let items = [];
+	export let items: { label: string; value: string; disabled?: boolean }[] = [];
 	export let label: string;
 	export let all = false;
 
@@ -13,7 +13,7 @@
 		updateValidateField
 	} = getFieldContext(name);
 
-	let selected = [];
+	let selected: string[] = [];
 	$: {
 		const formValue = $value;
 		if (Array.isArray(formValue)) {
@@ -48,8 +48,8 @@
 		if (selectedSet.size === items.length) {
 			updateForm([]);
 		} else {
-			const allEnabled = items.filter((i) => !i.disabled).map((i) => i.value);
-			updateForm(allEnabled);
+			const allEnabled = items?.filter((i) => !i.disabled).map((i) => i.value);
+			updateForm(allEnabled ?? []);
 		}
 	};
 </script>

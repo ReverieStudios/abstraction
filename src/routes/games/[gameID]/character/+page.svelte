@@ -1,33 +1,77 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { database } from '$lib/database';
-	import type { Updaters } from '$lib/database';
+	import type { Docs, Updaters } from '$lib/database';
 	import Form from '$lib/form/Form.svelte';
 	import TextField from '$lib/form/TextField.svelte';
 	import Button from '$lib/form/Button.svelte';
 	import { getNotify } from '$lib/ui/Notifications.svelte';
 	import type { User } from '$lib/database/types/User';
 	import IconButton from '$lib/ui/IconButton.svelte';
-	import { derived } from 'svelte/store';
+	import { getContext } from 'svelte';
+	import { derived, type Readable, readable } from 'svelte/store';
 	import { keyBy } from 'lodash-es';
 	import PurchasedAssetRow from '$lib/characters/PurchasedAssetRow.svelte';
+	import PurchasedRelationshipSelectorRow from '$lib/characters/PurchasedRelationshipSelectorRow.svelte';
 
 	const user: User = $page.data.user;
 
 	const sendNotification = getNotify();
 	const { gameID } = $page.params;
-	const character = database.characters?.doc(user.uid);
+	const character = getContext('character');
 
-	const characterAssets = derived([character, database.assets], ([$character, $assets]) => {
-		if (!$character || !$assets) {
-			return [];
+	const characterAssets: Readable<Docs.Asset[]> = derived(
+		[character ?? readable(null), database.assets ?? readable([])],
+		([$character, $assets]) => {
+			if (!$character || !$assets) {
+				return [];
+			}
+			const assetsByID = keyBy($assets, 'id');
+			const characterAssets: string[] = $character?.data?.assets ?? [];
+			return characterAssets.map((id: string) => assetsByID[id]).filter(Boolean);
 		}
-		const assetsByID = keyBy($assets, 'id');
-		const characterAssets = $character?.data?.assets ?? [];
-		return characterAssets.map((id) => assetsByID[id]).filter(Boolean);
+	);
+
+	const characterAssetsByID: Readable<Record<string, Docs.Asset>> = derived(characterAssets, (assets) => {
+		return keyBy(assets, 'id');
 	});
 
-	const hasLoaded = character.hasLoaded;
+	const characterRelationshipSelectors: Readable<Docs.RelationshipSelector[]> = derived(
+		[character ?? readable(null), database.relationshipSelectors ?? readable([])],
+		([$character, $relationshipSelectors]) => {
+			if (!$character || !$relationshipSelectors) {
+				return [];
+			}
+			const selectorsByID = keyBy($relationshipSelectors, 'id');
+			const characterAssets: string[] = $character?.data?.assets ?? [];
+			return characterAssets.map((id: string) => selectorsByID[id]).filter(Boolean);
+		}
+	);
+
+	const characterRelationshipSelectorsByID = derived(characterRelationshipSelectors, (selectors) => {
+		return keyBy(selectors, 'id');
+	});
+
+	const characterRelationshipAssignmentsByID: Readable<Record<string, Docs.RelationshipAssignment>> = derived(
+		[characterRelationshipSelectorsByID ?? readable({}), database.relationshipAssignments ?? readable([])],
+		([$characterRelationshipSelectorsByID, $relationshipAssignments]) => {
+			if (!$characterRelationshipSelectorsByID || !$relationshipAssignments) {
+				return {};
+			}
+			const userAssignments = $relationshipAssignments.filter((assignment: Docs.RelationshipAssignment) => {
+				if (assignment.data.userID !== user?.uid) {
+					return false;
+				}
+				if ($characterRelationshipSelectorsByID[assignment.data.relationshipSelectorID]) {
+					return true;
+				}
+
+			});
+			return keyBy(userAssignments, 'id');
+		}
+	);
+
+	const hasLoaded = character?.hasLoaded;
 
 	const updateName = (values: Updaters.Character) => {
 		fetch('/api/character/updateName', {
@@ -71,6 +115,14 @@
 		<PurchasedAssetRow {asset} />
 	{/each}
 </div>
+<div class="rounded bg-primary mb2 flex flex-column g1 divided">
+	{#each $characterRelationshipSelectors as selector}
+		<PurchasedRelationshipSelectorRow
+			{selector}
+			assignment={$characterRelationshipAssignmentsByID[selector.id]}
+		/>
+	{/each}
+</div>	
 
 <style>
 	@media screen {

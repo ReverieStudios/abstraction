@@ -11,7 +11,7 @@
 	import type { Readable } from 'svelte/store';
 
 	export let lockStatus: Readable<Lock.Status>;
-	export let asset: Docs.Asset;
+	export let asset: Docs.Asset | Docs.RelationshipSelector | null;
 
 	const sendNotification = getNotify();
 
@@ -78,7 +78,7 @@
 	let lastStatus = $lockStatus;
 	$: {
 		if (lastStatus === Lock.Status.PlayerQueued && $lockStatus === Lock.Status.PlayerClaimed) {
-			sendNotification({ text: `Lock obtained for ${asset.data.name}` });
+			sendNotification({ text: `Lock obtained for ${asset?.data.name}` });
 		}
 		lastStatus = $lockStatus;
 	}

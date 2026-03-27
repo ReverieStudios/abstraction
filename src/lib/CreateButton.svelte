@@ -12,7 +12,8 @@
 		| Collection<any>
 		| DocumentMap<any>
 		| CollectionDocument<any>
-		| DocType<any> = null;
+		| DocType<any> 
+		| null= null;
 
 	export let id: (text?: string) => string = () => generateID();
 	export let data: (text: string, id?: string) => Object = (name) => ({ name });
@@ -38,7 +39,7 @@
 				createPromise = parent.addDoc(docData, id);
 			} else {
 				const id = idStr || generateID();
-				createPromise = parent.update({ [id]: docData }).then(() => id);
+				createPromise = parent?.update({ [id]: docData }).then(() => id);
 			}
 
 			return createPromise

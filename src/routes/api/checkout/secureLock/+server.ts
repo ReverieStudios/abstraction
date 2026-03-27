@@ -32,14 +32,13 @@ export const POST: RequestHandler = async (event) => {
 			.runTransaction<LockResult>(async (transaction) => {
 				const lock = await database.locks?.doc(assetID)?.read(transaction);
 				if (!lock) {
-					// unknown asset
+					// unknown asset / relationship selector
 					return false;
 				}
 				const character = await database.characters?.doc(uid)?.read(transaction);
 				if (depth > -1 && (character?.data?.assets ?? []).length > depth) {
 					return false;
 				}
-
 				const update = addLock(lock, uid, flags);
 				await lock.update(update, transaction);
 

@@ -27,7 +27,7 @@
 	{gameID}
 	{userID}
 	user={$user?.data}
-	{chosenAssets}
+	chosenItems={chosenAssets}
 	{secureLock}
 	{releaseLocks}
 />

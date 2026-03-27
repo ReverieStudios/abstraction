@@ -1,6 +1,6 @@
 <script lang="ts">
 	import Decider from '$lib/characters/Decider.svelte';
-	import { derived } from 'svelte/store';
+	import { derived, type Readable } from 'svelte/store';
 	import { getNotify } from '$lib/ui/Notifications.svelte';
 	import type {LockLimited, LockPrereqs, LockResult } from '../../../api/checkout/secureLock/+server';
 	import { onMount } from 'svelte';
@@ -17,7 +17,7 @@
 
 	const character = database.characters?.doc(userID);
 
-	const chosenAssets = derived(character, ($character) => {
+	const chosenAssets: Readable<string[]> = derived(character, ($character) => {
 		return $character?.data?.assets ?? [];
 	});
 
@@ -91,6 +91,23 @@
 				}
 				return body.success;
 			});
+	const updateRankings = (relationshipSelectorID: string, rankedIDs: string[]): Promise<boolean> =>
+		fetch('/api/relationships/updateRankings', {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json;charset=utf-8'
+			},
+			body: JSON.stringify({ relationshipSelectorID, rankedIDs, gameID })
+		})
+			.then((res) => res.json())
+			.then((body) => {
+				if (body?.message) {
+					sendNotification({ text: `Unable to update rankings: ${body.message}`});
+					return false;
+				} {
+					return body;
+				}
+			});
 </script>
 
 <Decider
@@ -98,8 +115,9 @@
 	{gameID}
 	{userID}
 	user={$user?.data}
-	{chosenAssets}
+	chosenItems={chosenAssets}
 	{secureLock}
 	{releaseLocks}
 	{finalize}
+	{updateRankings}
 />

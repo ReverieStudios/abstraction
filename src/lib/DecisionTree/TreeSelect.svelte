@@ -93,6 +93,24 @@
 		place-content: flex-end;
 		margin-right: 0;
 	}
+
+	/* Responsive: stack controls on small screens */
+	@media (max-width: 720px) {
+		.grid {
+			grid-template-columns: 1fr;
+			grid-auto-rows: auto;
+			/* let the global .g2 gap still apply; reduce slightly on mobile */
+			gap: 0.75rem;
+		}
+
+		/* Make Create and Confirm buttons full-width on mobile */
+		.grid :global(.create-wrapper > button),
+		.grid :global(.confirm-wrapper > button) {
+			width: 100%;
+			box-sizing: border-box;
+			height: auto;
+		}
+	}
 	:global(.fill-h) {
 		height: 100%;
 	}

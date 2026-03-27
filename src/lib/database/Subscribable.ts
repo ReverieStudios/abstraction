@@ -120,7 +120,7 @@ export abstract class Subscribable<T = Object, DT = DocType<T>> {
 			if (index !== -1) {
 				this.subscribers.splice(index, 1);
 			}
-			if (this.subscribers.length === 0) {
+			if (this.subscribers.length === 0 && !this.data) {
 				this.stop();
 				this.stop = noop;
 			}

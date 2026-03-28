@@ -51,6 +51,7 @@
 		{ text: 'Logout', onClick: signOut }
 	].filter(Boolean);
 
+    export let data;
     let hasLoaded = false;
     onMount(() => {
 		hasLoaded = true;
@@ -67,7 +68,7 @@
 					<FormChecker {userID}></FormChecker>
 				{/if}
 			{/if}
-			<PageTransition>
+			<PageTransition {data}>
 				{#if hasLoaded}
 					<slot></slot>
 				{/if}

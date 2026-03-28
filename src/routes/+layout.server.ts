@@ -10,5 +10,5 @@ export const load: LayoutServerLoad = ({ url, locals }) => {
 	} else if (!user) {
 		redirect(302, '/');
 	}
-	return { user: user, decodedToken: decodedToken };
+	return { user: user, decodedToken: decodedToken, url: url.pathname };
 };

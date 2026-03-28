@@ -1,15 +1,13 @@
-<script>
+<script lang="ts">
 	import { fly } from 'svelte/transition';
-	import { page } from '$app/stores';
-	// import { afterNavigate, beforeNavigate } from '$app/navigation';
-	$: refresh = $page.url.pathname;
 
-	// beforeNavigate(() => console.log('beforeNav'));
-	// afterNavigate(() => console.log('afterNav'));
+	export let data;
 </script>
 
-{#key refresh}
-	<div in:fly|global={{ y: -50, duration: 250, delay: 300 }} out:fly|global={{ y: -50, duration: 250 }}>
+{#key data.url}
+	<div 
+		in:fly|global={{ y: -50, duration: 250, delay: 300 }}
+		out:fly|global={{ y: -50, duration: 250 }} class="transition-page">
 		<slot />
 	</div>
 {/key}

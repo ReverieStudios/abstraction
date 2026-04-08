@@ -1,3 +1,13 @@
+/**
+ * Capacitated Rank-Maximal Matching
+ *
+ * Based on the algorithm described in:
+ *   Katarzyna E. Paluch, "Capacitated Rank-Maximal Matchings"
+ *   8th International Conference on Algorithms and Complexity (CIAC 2013)
+ *   Lecture Notes in Computer Science, vol. 7878, Springer, pp. 324–335
+ *   DOI: 10.1007/978-3-642-38233-8_27
+ */
+
 type NodeId = string;
 
 interface Edge {
@@ -5,12 +15,19 @@ interface Edge {
   rank: number;
 }
 
-class CapacitatedRankMaximalMatcher {
+export interface Match {
+  applicant: NodeId;
+  post: NodeId;
+}
+
+export class CapacitatedRankMaximalMatcher {
   private applicants = new Set<NodeId>();
   private posts = new Set<NodeId>();
   private capacities = new Map<NodeId, number>();
   private adj = new Map<NodeId, Edge[]>();
-  private currentMatching = new Set<string>(); // Persists across rank iterations
+  private currentMatching = new Set<Match>();
+  private usedCapacity = new Map<NodeId, number>();
+  private matchIndex = new Map<string, Match>(); // Key: `${applicant}|${post}`
 
   addNode(id: NodeId, isPost: boolean, capacity: number) {
     if (isPost) this.posts.add(id);
@@ -24,17 +41,32 @@ class CapacitatedRankMaximalMatcher {
     this.adj.get(v)!.push({ to: u, rank });
   }
 
-  private getUsedCapacity(node: NodeId, matching: Set<string>): number {
-    let count = 0;
-    for (const pair of matching) {
-      if (pair.split('|').includes(node)) count++;
-    }
-    return count;
+  private getUsedCapacity(node: NodeId): number {
+    return this.usedCapacity.get(node) ?? 0;
+  }
+
+  private addMatch(applicant: NodeId, post: NodeId) {
+    const match: Match = { applicant, post };
+    this.currentMatching.add(match);
+    this.matchIndex.set(`${applicant}|${post}`, match);
+    this.usedCapacity.set(applicant, (this.usedCapacity.get(applicant) ?? 0) + 1);
+    this.usedCapacity.set(post, (this.usedCapacity.get(post) ?? 0) + 1);
+    return match;
+  }
+
+  private removeMatch(match: Match) {
+    this.currentMatching.delete(match);
+    this.matchIndex.delete(`${match.applicant}|${match.post}`);
+    this.usedCapacity.set(match.applicant, (this.usedCapacity.get(match.applicant) ?? 0) - 1);
+    this.usedCapacity.set(match.post, (this.usedCapacity.get(match.post) ?? 0) - 1);
+  }
+
+  private findMatch(applicant: NodeId, post: NodeId): Match | undefined {
+    return this.matchIndex.get(`${applicant}|${post}`);
   }
 
   /**
    * Standard b-matching augmentation using Edmonds-Karp.
-   * Crucially, it takes the EXISTING matching and tries to find new paths.
    */
   augmentMatching(rankLimit: number) {
     while (true) {
@@ -44,7 +76,7 @@ class CapacitatedRankMaximalMatcher {
 
       // BFS starts from any applicant who hasn't reached capacity
       for (const a of this.applicants) {
-        if (this.getUsedCapacity(a, this.currentMatching) < (this.capacities.get(a) || 0)) {
+        if (this.getUsedCapacity(a) < (this.capacities.get(a) || 0)) {
           queue.push(a);
           parent.set(a, "SOURCE");
         }
@@ -56,11 +88,10 @@ class CapacitatedRankMaximalMatcher {
           // Applicant -> Post: Check all available edges up to current rank
           for (const edge of this.adj.get(u)!) {
             const v = edge.to;
-            const pair = `${u}|${v}`;
-            if (edge.rank <= rankLimit && !this.currentMatching.has(pair)) {
+            if (edge.rank <= rankLimit && !this.findMatch(u, v)) {
               if (!parent.has(v)) {
                 parent.set(v, u);
-                if (this.getUsedCapacity(v, this.currentMatching) < (this.capacities.get(v) || 0)) {
+                if (this.getUsedCapacity(v) < (this.capacities.get(v) || 0)) {
                   sinkReached = v;
                   break;
                 }
@@ -72,8 +103,7 @@ class CapacitatedRankMaximalMatcher {
           // Post -> Applicant: Must follow a currently matched edge (residual graph)
           for (const edge of this.adj.get(u)!) {
             const v = edge.to;
-            const pair = `${v}|${u}`;
-            if (this.currentMatching.has(pair) && !parent.has(v)) {
+            if (this.findMatch(v, u) && !parent.has(v)) {
               parent.set(v, u);
               queue.push(v);
             }
@@ -88,9 +118,10 @@ class CapacitatedRankMaximalMatcher {
       while (curr !== "SOURCE") {
         const prev = parent.get(curr)!;
         if (prev !== "SOURCE") {
-          const pair = this.applicants.has(prev) ? `${prev}|${curr}` : `${curr}|${prev}`;
-          if (this.currentMatching.has(pair)) this.currentMatching.delete(pair);
-          else this.currentMatching.add(pair);
+          const [applicant, post] = this.applicants.has(prev) ? [prev, curr] : [curr, prev];
+          const existing = this.findMatch(applicant, post);
+          if (existing) this.removeMatch(existing);
+          else this.addMatch(applicant, post);
         }
         curr = prev;
       }
@@ -104,7 +135,7 @@ class CapacitatedRankMaximalMatcher {
 
     // Saturated nodes logic for Gallai-Edmonds
     for (const node of [...this.applicants, ...this.posts]) {
-      if (this.getUsedCapacity(node, this.currentMatching) < (this.capacities.get(node) || 0)) {
+      if (this.getUsedCapacity(node) < (this.capacities.get(node) || 0)) {
         E.add(node);
         visited.add(node);
         queue.push([node, 0]);
@@ -121,8 +152,8 @@ class CapacitatedRankMaximalMatcher {
               visited.add(v); O.add(v); queue.push([v, dist + 1]);
             }
           } else { // Backward only via matched edge
-            const pair = this.applicants.has(u) ? `${u}|${v}` : `${v}|${u}`;
-            if (!visited.has(v) && this.currentMatching.has(pair)) {
+            const [applicant, post] = this.applicants.has(u) ? [u, v] : [v, u];
+            if (!visited.has(v) && this.findMatch(applicant, post)) {
               visited.add(v); E.add(v); queue.push([v, dist + 1]);
             }
           }
@@ -136,6 +167,8 @@ class CapacitatedRankMaximalMatcher {
 
   solve(maxRank: number) {
     this.currentMatching.clear();
+    this.usedCapacity.clear();
+    this.matchIndex.clear();
     for (let r = 1; r <= maxRank; r++) {
       this.augmentMatching(r);
       const { E, O, U } = this.decompose(r);
@@ -165,5 +198,5 @@ matcher.addEdge("A1", "P1", 1);
 matcher.addEdge("A1", "P2", 2);
 matcher.addEdge("A2", "P1", 1);
 
-console.log("Result:", Array.from(matcher.solve(2))); 
-// Correct Output: ["A1|P1", "A2|P1", "A1|P2"]
+console.log("Result:", Array.from(matcher.solve(2)));
+// Correct Output: [{ applicant: 'A1', post: 'P1' }, { applicant: 'A2', post: 'P1' }, { applicant: 'A1', post: 'P2' }]

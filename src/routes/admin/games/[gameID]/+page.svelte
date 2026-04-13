@@ -37,6 +37,11 @@
 			info: 'Manage how relationships are assigned to characters'
 		},
 		{
+			text: 'Relationship Assignments',
+			href: `/admin/games/${gameID}/relationshipAssignments`,
+			info: 'Run the matching algorithm and review or adjust relationship assignments'
+		},
+		{
 			text: 'Characters',
 			href: `/admin/games/${gameID}/characters`,
 			info: 'View and manage the characters in the game'

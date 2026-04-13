@@ -44,7 +44,7 @@ export const POST: RequestHandler = async (event) => {
                 }
 
                 await database.relationshipAssignments?.doc(assignmentKey)?.update(
-                    { relationshipRankings: rankings }, transaction
+                    { relationshipRankings: rankings, userID: uid, relationshipSelectorID }, transaction
                 );
                 
                 return true;

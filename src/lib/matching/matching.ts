@@ -235,17 +235,3 @@ export class CapacitatedRankMaximalMatcher {
     return rosters;
   }
 }
-
-// --- Test Case (Capacity 2) ---
-const matcher = new CapacitatedRankMaximalMatcher();
-matcher.addNode("A1", false, 1);
-matcher.addNode("A2", false, 1);
-matcher.addNode("P1", true, 1);
-matcher.addNode("P2", true, 1);
-
-matcher.addEdge("A1", "P1", 1);
-matcher.addEdge("A1", "P2", 2);
-matcher.addEdge("A2", "P1", 1);
-
-console.log("Result:", Array.from(matcher.solve(2)));
-// Correct Output: [{ applicant: 'A1', post: 'P1' }, { applicant: 'A2', post: 'P1' }, { applicant: 'A1', post: 'P2' }]

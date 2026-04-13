@@ -25,6 +25,7 @@ export class CapacitatedRankMaximalMatcher {
   private posts = new Set<NodeId>();
   private capacities = new Map<NodeId, number>();
   private adj = new Map<NodeId, Edge[]>();
+  private originalAdj = new Map<NodeId, Edge[]>(); // Unpruned, used by fillTuples
   private currentMatching = new Set<Match>();
   private usedCapacity = new Map<NodeId, number>();
   private matchIndex = new Map<string, Match>(); // Key: `${applicant}|${post}`
@@ -34,11 +35,14 @@ export class CapacitatedRankMaximalMatcher {
     else this.applicants.add(id);
     this.capacities.set(id, capacity);
     this.adj.set(id, []);
+    this.originalAdj.set(id, []);
   }
 
   addEdge(u: NodeId, v: NodeId, rank: number) {
     this.adj.get(u)!.push({ to: v, rank });
     this.adj.get(v)!.push({ to: u, rank });
+    this.originalAdj.get(u)!.push({ to: v, rank });
+    this.originalAdj.get(v)!.push({ to: u, rank });
   }
 
   private getUsedCapacity(node: NodeId): number {
@@ -184,6 +188,51 @@ export class CapacitatedRankMaximalMatcher {
       }
     }
     return this.currentMatching;
+  }
+
+  /**
+   * After solve(), fills each post's applicant list up to the nearest multiple
+   * of that post's tuple size by greedily adding the unmatched applicants who
+   * ranked the post highest.
+   *
+   * Returns a new Map<postId, NodeId[]> of the complete (possibly over-capacity)
+   * rosters per post. Posts that already divide evenly are included unchanged.
+   *
+   * @param matching - the Set<Match> returned by solve()
+   * @param tupleSizes - per-post tuple size (defaults to 2 for any post not listed)
+   */
+  fillTuples(matching: Set<Match>, tupleSizes: Map<NodeId, number> = new Map()): Map<NodeId, NodeId[]> {
+    // Build initial rosters from the matching
+    const rosters = new Map<NodeId, NodeId[]>();
+    for (const post of this.posts) rosters.set(post, []);
+    for (const { applicant, post } of matching) rosters.get(post)!.push(applicant);
+
+    // Build a lookup: post -> sorted list of (applicant, rank) for unmatched applicants
+    // adj stores edges on both sides, so we read from each post's adjacency list
+    for (const post of this.posts) {
+      const tupleSize = tupleSizes.get(post) ?? 2;
+      const roster = rosters.get(post)!;
+      const remainder = roster.length % tupleSize;
+      if (remainder === 0) continue;
+
+      const needed = tupleSize - remainder;
+
+      // Collect unmatched applicants who have an edge to this post, sorted by rank (ascending)
+      const candidates: { applicant: NodeId; rank: number }[] = [];
+      for (const edge of this.originalAdj.get(post) ?? []) {
+        const applicant = edge.to;
+        if (!this.applicants.has(applicant)) continue; // skip post-side neighbours
+        if (roster.includes(applicant)) continue;      // already assigned
+        candidates.push({ applicant, rank: edge.rank });
+      }
+      candidates.sort((a, b) => a.rank - b.rank);
+
+      for (let i = 0; i < needed && i < candidates.length; i++) {
+        roster.push(candidates[i].applicant);
+      }
+    }
+
+    return rosters;
   }
 }
 

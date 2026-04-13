@@ -283,6 +283,122 @@ describe('CapacitatedRankMaximalMatcher', () => {
     });
   });
 
+  describe('fillTuples', () => {
+    it('returns rosters unchanged when all posts already divide evenly', () => {
+      // P1 has 2 applicants, tuple size 2 — no fill needed
+      const m = new CapacitatedRankMaximalMatcher();
+      m.addNode('A1', false, 1); m.addNode('A2', false, 1);
+      m.addNode('P1', true, 2);
+      m.addEdge('A1', 'P1', 1);
+      m.addEdge('A2', 'P1', 1);
+
+      const matching = m.solve(1);
+      const rosters = m.fillTuples(matching, new Map([['P1', 2]]));
+
+      expect(rosters.get('P1')!.length).toBe(2);
+    });
+
+    it('fills a post that has 1 applicant up to the nearest multiple of tuple size 2', () => {
+      // P1 matched to A1 only (1 applicant). A2 ranked P1 rank-2 and was not matched.
+      // fillTuples should add A2 to P1's roster to reach 2.
+      const m = new CapacitatedRankMaximalMatcher();
+      m.addNode('A1', false, 1); m.addNode('A2', false, 1);
+      m.addNode('P1', true, 1);  m.addNode('P2', true, 1);
+      m.addEdge('A1', 'P1', 1);
+      m.addEdge('A2', 'P2', 1); // A2 gets P2, not P1
+      m.addEdge('A2', 'P1', 2); // A2's rank-2 fallback — used as fill candidate
+
+      const matching = m.solve(2);
+      // matching: A1→P1, A2→P2
+      expect(matching.size).toBe(2);
+
+      const rosters = m.fillTuples(matching, new Map([['P1', 2], ['P2', 2]]));
+
+      // P1 has 1 matched applicant; needs 1 fill → A2 is the best candidate (rank-2)
+      expect(rosters.get('P1')!).toContain('A1');
+      expect(rosters.get('P1')!).toContain('A2');
+      expect(rosters.get('P1')!.length).toBe(2);
+
+      // P2 already has 1 matched applicant and tuple size 2, needs 1 fill
+      // A1 ranked P2? No — only A2 has P2. So P2 stays at 1 (no candidates).
+      expect(rosters.get('P2')!).toContain('A2');
+    });
+
+    it('prefers the highest-ranking (lowest rank number) unmatched candidate when filling', () => {
+      // P1 has 1 matched applicant (A1). Candidates: A2 (rank-1 to P1), A3 (rank-2 to P1).
+      // A2 should be picked first as the better-ranking candidate.
+      const m = new CapacitatedRankMaximalMatcher();
+      m.addNode('A1', false, 1); m.addNode('A2', false, 1); m.addNode('A3', false, 1);
+      m.addNode('P1', true, 1);  m.addNode('P2', true, 1);  m.addNode('P3', true, 1);
+      m.addEdge('A1', 'P1', 1);
+      m.addEdge('A2', 'P2', 1); m.addEdge('A2', 'P1', 1); // A2 ranks P1 at rank-1
+      m.addEdge('A3', 'P3', 1); m.addEdge('A3', 'P1', 2); // A3 ranks P1 at rank-2
+
+      const matching = m.solve(2);
+      // A1→P1, A2→P2 or A2→P1 depending on BFS order — either way P1 gets 1 match
+      const p1Roster = Array.from(matching).filter(m => m.post === 'P1').map(m => m.applicant);
+      expect(p1Roster.length).toBe(1);
+
+      const rosters = m.fillTuples(matching, new Map([['P1', 2]]));
+      const filled = rosters.get('P1')!;
+      expect(filled.length).toBe(2);
+
+      // The fill candidate must be the one with the lower rank number for P1
+      const fillCandidate = filled.find(a => !p1Roster.includes(a))!;
+      const fillCandidateRank = fillCandidate === 'A2' ? 1 : 2;
+      const otherCandidateRank = fillCandidate === 'A2' ? 2 : 1;
+      expect(fillCandidateRank).toBeLessThan(otherCandidateRank);
+    });
+
+    it('fills up to tuple size 3 when needed', () => {
+      // P1 matched to 2 applicants, tuple size 3 → needs 1 fill
+      const m = new CapacitatedRankMaximalMatcher();
+      m.addNode('A1', false, 1); m.addNode('A2', false, 1); m.addNode('A3', false, 1);
+      m.addNode('P1', true, 2);  m.addNode('P2', true, 1);
+      m.addEdge('A1', 'P1', 1);
+      m.addEdge('A2', 'P1', 1);
+      m.addEdge('A3', 'P2', 1); m.addEdge('A3', 'P1', 2); // A3 is fill candidate for P1
+
+      const matching = m.solve(1);
+      expect(Array.from(matching).filter(m => m.post === 'P1').length).toBe(2);
+
+      const rosters = m.fillTuples(matching, new Map([['P1', 3]]));
+      expect(rosters.get('P1')!.length).toBe(3);
+      expect(rosters.get('P1')!).toContain('A3');
+    });
+
+    it('does not add fill candidates who have no edge to the post', () => {
+      // P1 has 1 applicant. A2 has no edge to P1 at all — should not be added.
+      const m = new CapacitatedRankMaximalMatcher();
+      m.addNode('A1', false, 1); m.addNode('A2', false, 1);
+      m.addNode('P1', true, 1);  m.addNode('P2', true, 1);
+      m.addEdge('A1', 'P1', 1);
+      m.addEdge('A2', 'P2', 1); // A2 has no edge to P1
+
+      const matching = m.solve(1);
+      const rosters = m.fillTuples(matching, new Map([['P1', 2]]));
+
+      // No valid fill candidate exists for P1 — roster stays at 1
+      expect(rosters.get('P1')!.length).toBe(1);
+      expect(rosters.get('P1')!).not.toContain('A2');
+    });
+
+    it('does not mutate the original matching', () => {
+      const m = new CapacitatedRankMaximalMatcher();
+      m.addNode('A1', false, 1); m.addNode('A2', false, 1);
+      m.addNode('P1', true, 1);  m.addNode('P2', true, 1);
+      m.addEdge('A1', 'P1', 1);
+      m.addEdge('A2', 'P2', 1);
+      m.addEdge('A2', 'P1', 2);
+
+      const matching = m.solve(2);
+      const sizeBefore = matching.size;
+      m.fillTuples(matching, new Map([['P1', 2]]));
+
+      expect(matching.size).toBe(sizeBefore);
+    });
+  });
+
   describe('edge cases', () => {
     it('handles a single unmatched applicant with no available posts', () => {
       const m = new CapacitatedRankMaximalMatcher();

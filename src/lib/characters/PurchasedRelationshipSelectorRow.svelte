@@ -9,6 +9,7 @@
 
     export let selector: Docs.RelationshipSelector;
     export let assignment: Docs.RelationshipAssignment | null = null;
+    export let existingRanks: string[] | null = null;
     export let enableHelp: boolean = true;
 
     const relationships = database.relationships;
@@ -19,7 +20,7 @@
     {#if !assignment || !assignment.data?.assignedRelationships || assignment.data?.assignedRelationships.length === 0}
         <!-- No assigned relationships: show chooser but disable sorting/moving -->
         <div class="pl2">
-            <RelationshipChooser relationshipSelectorID={selector.id} allowSort={false} enableHelp={enableHelp}/>
+            <RelationshipChooser relationshipSelectorID={selector.id} allowSort={false} enableHelp={enableHelp} {existingRanks}/>
         </div>
     {:else}
         <!-- Assigned relationships: show the RelationshipRow(s) and assigned user IDs -->

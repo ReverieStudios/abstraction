@@ -43,9 +43,10 @@
 				.filter(Boolean)
 		: [];
 
-	const relationshipAssignmentsByID: Readable<Record<string, Docs.RelationshipAssignment>> = derived(
-		database.relationshipAssignments ?? readable([]),
-		($assignments) => keyBy($assignments ?? [], 'id')
+	const allRelationshipAssignments = database.relationshipAssignments ?? readable([]);
+	$: relationshipAssignmentsByID = keyBy(
+		($allRelationshipAssignments ?? []).filter((a: Docs.RelationshipAssignment) => a.data.userID === characterID),
+		(a: Docs.RelationshipAssignment) => a.data.relationshipSelectorID
 	);
 
 	const sendNotification = getNotify();
@@ -112,7 +113,8 @@
 				{#each characterRelationshipSelectors as selector}
 					<PurchasedRelationshipSelectorRow
 						{selector}
-						assignment={$relationshipAssignmentsByID[selector.id] ?? null}
+						assignment={relationshipAssignmentsByID[selector.id] ?? null}
+						existingRanks={relationshipAssignmentsByID[selector.id]?.data?.relationshipRankings ?? null}
 						enableHelp={false}
 					/>
 				{/each}

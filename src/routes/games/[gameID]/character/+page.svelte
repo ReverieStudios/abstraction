@@ -66,12 +66,10 @@
 					return true;
 				}
 
-			});
-			return keyBy(userAssignments, 'id');
+		});
+		return keyBy(userAssignments, (a) => a.data.relationshipSelectorID);
 		}
-	);
-
-	const hasLoaded = character?.hasLoaded;
+	);	const hasLoaded = character?.hasLoaded;
 
 	const updateName = (values: Updaters.Character) => {
 		fetch('/api/character/updateName', {
@@ -119,7 +117,8 @@
 	{#each $characterRelationshipSelectors as selector}
 		<PurchasedRelationshipSelectorRow
 			{selector}
-			assignment={$characterRelationshipAssignmentsByID[selector.id]}
+			assignment={$characterRelationshipAssignmentsByID[selector.id] ?? null}
+			existingRanks={$characterRelationshipAssignmentsByID[selector.id]?.data?.relationshipRankings ?? null}
 		/>
 	{/each}
 </div>	

@@ -275,10 +275,10 @@
 			class="input mb1"
 		/>
 
-		<div class="user-list mb2">
+		<div class="user-list mb2 divided">
 			{#each filteredUsers as u (u.id)}
 				<button
-					class="user-option"
+					class="user-option hover-bg-primary-light rounded bg-surface"
 					class:selected={replaceWithUserID === u.id}
 					on:click={() => (replaceWithUserID = u.id)}
 				>

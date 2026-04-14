@@ -57,7 +57,7 @@ service cloud.firestore {
         allow write: if isWriter(game);
       }
       match /relationshipAssignments/{relationshipAssignment} {
-        allow read: if isUser(relationshipAssignment) || isWriter(game);
+        allow read: if (isSignedIn() && resource.data.userID == request.auth.uid) || isWriter(game);
         allow write: if isWriter(game);
       }
       match /favorites/{user} {
@@ -80,7 +80,7 @@ service cloud.firestore {
     }
 
     match /users/{user} {
-      allow read: if isUser(user) || isWriter()
+      allow read: if isUser(user) || isWriter();
       allow write: if isUser(user) || isWriter();
     }
 

@@ -13,12 +13,14 @@
 	import { keyBy } from 'lodash-es';
 	import PurchasedAssetRow from '$lib/characters/PurchasedAssetRow.svelte';
 	import PurchasedRelationshipSelectorRow from '$lib/characters/PurchasedRelationshipSelectorRow.svelte';
+	import type { characterDoc as CharacterDocType } from '$lib/database/Database';
 
 	const user: User = $page.data.user;
 
 	const sendNotification = getNotify();
-	const { gameID } = $page.params;
-	const character = getContext('character');
+	const gameID = $page.params.gameID as string;
+	const currentUserID = user.uid as string;
+	const character = getContext<typeof CharacterDocType>('character');
 
 	const characterAssets: Readable<Docs.Asset[]> = derived(
 		[character ?? readable(null), database.assets ?? readable([])],
@@ -52,22 +54,19 @@
 		return keyBy(selectors, 'id');
 	});
 
+	const userRelationshipAssignments = database.relationshipAssignments
+		?.withQueries({ field: 'userID', op: '==', value: user?.uid });
+
 	const characterRelationshipAssignmentsByID: Readable<Record<string, Docs.RelationshipAssignment>> = derived(
-		[characterRelationshipSelectorsByID ?? readable({}), database.relationshipAssignments ?? readable([])],
+		[characterRelationshipSelectorsByID ?? readable({}), userRelationshipAssignments ?? readable([])],
 		([$characterRelationshipSelectorsByID, $relationshipAssignments]) => {
 			if (!$characterRelationshipSelectorsByID || !$relationshipAssignments) {
 				return {};
 			}
 			const userAssignments = $relationshipAssignments.filter((assignment: Docs.RelationshipAssignment) => {
-				if (assignment.data.userID !== user?.uid) {
-					return false;
-				}
-				if ($characterRelationshipSelectorsByID[assignment.data.relationshipSelectorID]) {
-					return true;
-				}
-
-		});
-		return keyBy(userAssignments, (a) => a.data.relationshipSelectorID);
+				return !!$characterRelationshipSelectorsByID[assignment.data.relationshipSelectorID];
+			});
+			return keyBy(userAssignments, (a) => a.data.relationshipSelectorID);
 		}
 	);	const hasLoaded = character?.hasLoaded;
 
@@ -113,15 +112,17 @@
 		<PurchasedAssetRow {asset} />
 	{/each}
 </div>
-<div class="rounded bg-primary mb2 flex flex-column g1 divided">
-	{#each $characterRelationshipSelectors as selector}
+{#each $characterRelationshipSelectors as selector}
+	<div class="rounded bg-primary mb2 flex flex-column g1 divided">
 		<PurchasedRelationshipSelectorRow
 			{selector}
 			assignment={$characterRelationshipAssignmentsByID[selector.id] ?? null}
 			existingRanks={$characterRelationshipAssignmentsByID[selector.id]?.data?.relationshipRankings ?? null}
+			{gameID}
+			currentUserID={currentUserID}
 		/>
-	{/each}
-</div>	
+	</div>	
+{/each}
 
 <style>
 	@media screen {

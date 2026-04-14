@@ -116,6 +116,8 @@
 						assignment={relationshipAssignmentsByID[selector.id] ?? null}
 						existingRanks={relationshipAssignmentsByID[selector.id]?.data?.relationshipRankings ?? null}
 						enableHelp={false}
+						{gameID}
+						currentUserID={characterID ?? ''}
 					/>
 				{/each}
 			</div>

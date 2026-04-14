@@ -5,13 +5,14 @@
 	import { database } from '$lib/database';
 	import { isPlayer } from '$lib/permissions';
 	import { getContext } from 'svelte';
+	import type { characterDoc as CharacterDocType } from '$lib/database/Database';
 
 	const { gameID } = $page.params;
 	const game: Game = $page.data.game;
 	const userID: string = $page.data.userID;
 
 	const user = database.users.doc(userID);
-	const character = getContext('character');
+	const character = getContext<typeof CharacterDocType>('character');
 	$: userIsPlayer = isPlayer($user?.data?.roles ?? {}, gameID);
 	$: characterPurchased = userIsPlayer && ($character?.data?.purchased ?? false);
 

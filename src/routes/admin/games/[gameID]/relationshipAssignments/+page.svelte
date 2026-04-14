@@ -54,13 +54,29 @@
 	let clearing: Record<string, boolean> = {};
 
 	// ── Manual edit state ──────────────────────────────────────────────────────
-	// Editing a specific assignment — which relationship a user gets
-	interface EditingAssignment {
-		assignment: Docs.RelationshipAssignment;
+	// Editing means: swap a specific user out of a specific relationship
+	interface EditingSlot {
 		selectorID: string;
+		relationshipID: string;
+		oldUserID: string;       // the user being replaced
+		currentRoster: string[]; // full roster for this relationship
 	}
-	let editingAssignment: EditingAssignment | null = null;
-	let editRelationshipID: string = '';
+	let editingSlot: EditingSlot | null = null;
+	let replaceWithUserID: string = '';
+	let userSearch: string = '';
+
+	$: filteredUsers = ($users ?? []).filter((u) => {
+		// Exclude all current roster members (including the old user — re-selecting is a no-op)
+		if (editingSlot) {
+			if (editingSlot.currentRoster.includes(u.id)) return false;
+		}
+		if (!userSearch) return true;
+		const q = userSearch.toLowerCase();
+		return (
+			u.data.name?.toLowerCase().includes(q) ||
+			u.data.email?.toLowerCase().includes(q)
+		);
+	});
 
 	// ── User email helpers ─────────────────────────────────────────────────────
 	const getUserEmail = (userID: string): string => {
@@ -137,36 +153,64 @@
 	};
 
 	// ── Manual override: open edit modal ──────────────────────────────────────
-	const openEdit = (assignment: Docs.RelationshipAssignment, selectorID: string) => {
-		editingAssignment = { assignment, selectorID };
-		editRelationshipID = assignment.data.assignedRelationships?.[0]?.relationshipID ?? '';
+	const openEdit = (selectorID: string, relationshipID: string, userID: string, roster: string[]) => {
+		editingSlot = { selectorID, relationshipID, oldUserID: userID, currentRoster: roster };
+		replaceWithUserID = '';
+		userSearch = '';
 	};
 
 	// ── Manual override: save ─────────────────────────────────────────────────
 	const saveEdit = async () => {
-		if (!editingAssignment) return;
-		const { assignment } = editingAssignment;
+		if (!editingSlot || !replaceWithUserID) return;
+		const { selectorID, relationshipID, oldUserID, currentRoster } = editingSlot;
 
-		// Build updated assignedRelationships keeping existing assignedUserIDs
-		const existing = assignment.data.assignedRelationships ?? [];
-		let updated: { relationshipID: string; assignedUserIDs: string[] }[];
-		if (editRelationshipID) {
-			// Replace or create a single assignment entry for simplicity
-			const existingEntry = existing.find((e) => e.relationshipID === editRelationshipID);
-			updated = [
-				{
-					relationshipID: editRelationshipID,
-					assignedUserIDs: existingEntry?.assignedUserIDs ?? []
-				}
-			];
-		} else {
-			updated = [];
+		// Guard: new user must not already be in the roster
+		if (currentRoster.filter((id) => id !== oldUserID).includes(replaceWithUserID)) {
+			sendNotification({ text: 'That user is already in this relationship' });
+			return;
 		}
 
+		// No-op: same user selected — just close
+		if (replaceWithUserID === oldUserID) {
+			editingSlot = null;
+			return;
+		}
+
+		// New roster: swap old user out, new user in
+		const newRoster = currentRoster.map((id) => (id === oldUserID ? replaceWithUserID : id));
+
+		// All users whose assignment docs need updating:
+		// everyone in the new roster + the old user (to remove the relationship)
+		const allAffected = new Set([...newRoster, oldUserID]);
+		const selectorAssignments = $assignmentsBySelectorId[selectorID] ?? [];
+
 		try {
-			await assignment.update({ assignedRelationships: updated });
-			sendNotification({ text: 'Assignment updated' });
-			editingAssignment = null;
+			await Promise.all(
+				[...allAffected].map(async (uid) => {
+					const doc = selectorAssignments.find((a) => a.data.userID === uid);
+					if (!doc) return;
+					const existing = doc.data.assignedRelationships ?? [];
+					let updated: { relationshipID: string; assignedUserIDs: string[] }[];
+					if (uid === oldUserID) {
+						// Remove this relationship from the old user's assignments
+						updated = existing.filter((r) => r.relationshipID !== relationshipID);
+					} else {
+						// Add or update this relationship with the new roster for everyone else
+						const others = existing.filter((r) => r.relationshipID !== relationshipID);
+						updated = [...others, { relationshipID, assignedUserIDs: newRoster }];
+					}
+					await doc.update({ assignedRelationships: updated });
+				})
+			);
+			// If the new user has no assignment doc yet, we can't create one here easily —
+			// warn the editor if that was the case
+			const newUserHasDoc = selectorAssignments.some((a) => a.data.userID === replaceWithUserID);
+			if (!newUserHasDoc) {
+				sendNotification({ text: 'Warning: new user has no rankings doc — assignment saved to existing members only' });
+			} else {
+				sendNotification({ text: 'Assignment updated' });
+			}
+			editingSlot = null;
 		} catch (err) {
 			sendNotification({ text: 'Error saving assignment' });
 		}
@@ -178,29 +222,29 @@
 		userIDs: string[];
 	}
 
-	const buildRosters = (
-		selectorID: string,
-		selector: Docs.RelationshipSelector
-	): RosterEntry[] => {
-		const relIDs: string[] = selector.data.relationshipIDs ?? [];
-		const assignments = $assignmentsBySelectorId[selectorID] ?? [];
-
-		// Collect all userIDs assigned to each relationship
-		const rosterMap = new Map<string, Set<string>>();
-		for (const relID of relIDs) rosterMap.set(relID, new Set());
-
-		for (const assignment of assignments) {
-			for (const ar of assignment.data.assignedRelationships ?? []) {
-				if (!rosterMap.has(ar.relationshipID)) rosterMap.set(ar.relationshipID, new Set());
-				rosterMap.get(ar.relationshipID)!.add(assignment.data.userID);
+	const rostersBySelectorId: Readable<Record<string, RosterEntry[]>> = derived(
+		[relationshipSelectors ?? readable([]), assignmentsBySelectorId],
+		([$selectors, $assignments]) => {
+			const result: Record<string, RosterEntry[]> = {};
+			for (const selector of $selectors ?? []) {
+				const relIDs: string[] = selector.data.relationshipIDs ?? [];
+				const selectorAssignments = $assignments[selector.id] ?? [];
+				const rosterMap = new Map<string, Set<string>>();
+				for (const relID of relIDs) rosterMap.set(relID, new Set());
+				for (const assignment of selectorAssignments) {
+					for (const ar of assignment.data.assignedRelationships ?? []) {
+						if (!rosterMap.has(ar.relationshipID)) rosterMap.set(ar.relationshipID, new Set());
+						rosterMap.get(ar.relationshipID)!.add(assignment.data.userID);
+					}
+				}
+				result[selector.id] = relIDs.map((relID) => ({
+					relationshipID: relID,
+					userIDs: Array.from(rosterMap.get(relID) ?? [])
+				}));
 			}
+			return result;
 		}
-
-		return relIDs.map((relID) => ({
-			relationshipID: relID,
-			userIDs: Array.from(rosterMap.get(relID) ?? [])
-		}));
-	};
+	);
 </script>
 
 <svelte:head>
@@ -210,37 +254,44 @@
 <!-- Edit assignment modal -->
 <Modal
 	title="Edit Assignment"
-	open={!!editingAssignment}
-	on:close={() => (editingAssignment = null)}
+	open={!!editingSlot}
+	on:close={() => (editingSlot = null)}
 	let:closeModal
 >
-	{#if editingAssignment}
-		{@const assignment = editingAssignment.assignment}
-		{@const selectorID = editingAssignment.selectorID}
-		{@const selector = ($relationshipSelectors ?? []).find((s) => s.id === selectorID)}
-
-		<p class="mb2">
-			Editing assignment for <strong>{getUserName(assignment.data.userID)}</strong>
-			({getUserEmail(assignment.data.userID)})
+	{#if editingSlot}
+		{@const rel = $relationshipsById[editingSlot.relationshipID]}
+		<p class="mb1">
+			Replacing <strong>{getUserName(editingSlot.oldUserID)}</strong>
+			in <strong>{rel?.data?.name ?? editingSlot.relationshipID}</strong>
 		</p>
+		<p class="muted h5 mb2">Current roster: {editingSlot.currentRoster.map(getUserName).join(', ')}</p>
 
-		<p class="muted mb1">Rankings submitted:</p>
-		<ol class="mb2 pl3">
-			{#each assignment.data.relationshipRankings ?? [] as relID}
-				<li>{$relationshipsById[relID]?.data?.name ?? relID}</li>
-			{/each}
-		</ol>
+		<label for="user-search" class="h4">Search for replacement:</label>
+		<input
+			id="user-search"
+			type="text"
+			placeholder="Name or email…"
+			bind:value={userSearch}
+			class="input mb1"
+		/>
 
-		<label for="assign-rel" class="h4">Assign to relationship:</label>
-		<select id="assign-rel" bind:value={editRelationshipID} class="select mb2">
-			<option value="">— None —</option>
-			{#each selector?.data?.relationshipIDs ?? [] as relID}
-				<option value={relID}>{$relationshipsById[relID]?.data?.name ?? relID}</option>
+		<div class="user-list mb2">
+			{#each filteredUsers as u (u.id)}
+				<button
+					class="user-option"
+					class:selected={replaceWithUserID === u.id}
+					on:click={() => (replaceWithUserID = u.id)}
+				>
+					<span class="bold">{u.data.name || '(no name)'}</span>
+					<span class="muted h5">{u.data.email}</span>
+				</button>
+			{:else}
+				<p class="muted h5">No users match.</p>
 			{/each}
-		</select>
+		</div>
 
 		<div class="flex g1">
-			<Button on:click={saveEdit}>Save</Button>
+			<Button disabled={!replaceWithUserID} on:click={saveEdit}>Save</Button>
 			<Button on:click={closeModal}>Cancel</Button>
 		</div>
 	{/if}
@@ -323,7 +374,7 @@
 									{/if}
 								</p>
 							{:else}
-								{@const rosters = buildRosters(selector.id, selector)}
+								{@const rosters = $rostersBySelectorId[selector.id] ?? []}
 								<div class="rosters">
 									{#each rosters as { relationshipID, userIDs } (relationshipID)}
 										{@const rel = $relationshipsById[relationshipID]}
@@ -346,18 +397,15 @@
 														<span class="muted h5 tuple-label">Group {tupleIndex + 1}</span>
 														<div class="flex flex-wrap g1 flex-auto">
 															{#each tuple as userID}
-																{@const assignment = ($assignmentsBySelectorId[selector.id] ?? []).find((a) => a.data.userID === userID)}
 															<div class="user-chip bg-surface flex items-center g1">
 																<span>{getUserEmail(userID)}</span>
-																	{#if assignment}
-																		<IconButton
-																			icon="edit"
-																			title="Edit assignment"
-																			on:click={() => openEdit(assignment, selector.id)}
-																		/>
-																	{/if}
-																</div>
-															{/each}
+																<IconButton
+																	icon="edit"
+																	title="Replace this user"
+																	on:click={() => openEdit(selector.id, relationshipID, userID, userIDs)}
+																/>
+															</div>
+														{/each}
 														</div>
 													</div>
 												{/each}
@@ -383,14 +431,9 @@
 									<div class="unassigned mt3">
 										<h3 class="my0 mb1">Unassigned participants ({unassigned.length})</h3>
 										<div class="flex flex-wrap g1">
-									{#each unassigned as assignment}
-										<div class="user-chip bg-surface flex items-center g1">
+											{#each unassigned as assignment}
+												<div class="user-chip bg-surface">
 													<span>{getUserEmail(assignment.data.userID)}</span>
-													<IconButton
-														icon="edit"
-														title="Manually assign"
-														on:click={() => openEdit(assignment, selector.id)}
-													/>
 												</div>
 											{/each}
 										</div>
@@ -459,16 +502,46 @@
 		padding-top: 1rem;
 	}
 
-	select.select {
+	.input {
 		display: block;
 		width: 100%;
 		padding: 0.5rem;
 		border: 1px solid var(--surface);
 		border-radius: 4px;
 		font-size: 1rem;
+		box-sizing: border-box;
 	}
 
-	ol {
-		margin: 0;
+	.user-list {
+		max-height: 16rem;
+		overflow-y: auto;
+		border: 1px solid var(--surface);
+		border-radius: 4px;
+	}
+
+	.user-option {
+		display: flex;
+		flex-direction: column;
+		gap: 0.1rem;
+		width: 100%;
+		text-align: left;
+		background: none;
+		border: none;
+		border-bottom: 1px solid var(--surface);
+		padding: 0.5rem 0.75rem;
+		cursor: pointer;
+	}
+
+	.user-option:last-child {
+		border-bottom: none;
+	}
+
+	.user-option:hover {
+		background: var(--secondary);
+	}
+
+	.user-option.selected {
+		background: var(--primary);
+		color: var(--on-primary);
 	}
 </style>

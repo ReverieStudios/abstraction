@@ -5,7 +5,6 @@ import { isEditor } from '$lib/permissions';
 import { CapacitatedRankMaximalMatcher } from '$lib/matching/matching';
 import { relationshipAssignmentKey } from '../_common';
 import type { Docs } from '$lib/database/types';
-import type { DocType } from '$lib/database/DocType';
 
 /**
  * POST /api/relationships/assignRelationships
@@ -110,25 +109,26 @@ export const POST: RequestHandler = async (event) => {
 		const rosters = matcher.fillTuples(matching, tupleSizes);
 
 		// ── 5. Write results to Firestore via batched writes ────────────────────
-		//      Firestore batches are capped at 500 ops; chunk if needed.
-		//      For each participant, update their assignment doc with assignedRelationships.
+		//      rosters is the authoritative source: Map<relID, userID[]>.
+		//      Invert it to get per-user assignments, then write one doc per user.
+
+		// Build per-user assignment list from rosters (includes fillTuples additions)
 		const userAssignments = new Map<string, string[]>();
-		for (const { applicant: userID, post: relID } of matching) {
-			if (!userAssignments.has(userID)) userAssignments.set(userID, []);
-			userAssignments.get(userID)!.push(relID);
+		for (const [relID, userIDs] of rosters) {
+			for (const userID of userIDs) {
+				if (!userAssignments.has(userID)) userAssignments.set(userID, []);
+				userAssignments.get(userID)!.push(relID);
+			}
 		}
 
-		// Full roster per relationship (after fillTuples rounding)
-		const relAssignedUsers = new Map<string, string[]>(rosters);
-
-		// Build the list of (docPath, data) pairs to write
+		// Every participant who submitted rankings gets a doc written (even if unmatched)
 		type WriteOp = { path: string; data: { assignedRelationships: { relationshipID: string; assignedUserIDs: string[] }[] } };
 		const ops: WriteOp[] = assignments.map((assignment) => {
 			const userID = assignment.data.userID;
 			const assignedRelIDs = userAssignments.get(userID) ?? [];
 			const assignedRelationships = assignedRelIDs.map((relID) => ({
 				relationshipID: relID,
-				assignedUserIDs: relAssignedUsers.get(relID) ?? []
+				assignedUserIDs: rosters.get(relID) ?? []
 			}));
 			const key = relationshipAssignmentKey(relationshipSelectorID, userID);
 			return { path: `games/${gameID}/relationshipAssignments/${key}`, data: { assignedRelationships } };

@@ -187,12 +187,12 @@ $: if (
 		<div class="ml-auto flex items-center g1">
 		{#if allowSort}
 			{#if !isChosen}
-				<Tooltip rich text="Add '{selector?.data?.name }'">
-					<IconButton icon="add_shopping_cart" on:click={() => handleChoose(relationshipSelectorID, rankedIds)} />
+				<Tooltip rich text="Continue with '{selector?.data?.name }'">
+					<IconButton icon="arrow_forward" on:click={() => handleChoose(relationshipSelectorID, rankedIds)} />
 				</Tooltip>
 			{:else}
-				<Tooltip rich text="Remove '{selector?.data?.name }'">
-					<IconButton icon="remove_shopping_cart" on:click={unchoose} />
+				<Tooltip rich text="Go back — remove '{selector?.data?.name }'">
+					<IconButton icon="arrow_back" on:click={unchoose} />
 				</Tooltip>
 			{/if}
 		{/if}

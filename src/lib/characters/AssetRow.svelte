@@ -135,8 +135,8 @@
 					<Tooltip rich text="Mark '{asset?.data?.name}' as a favorite">
 						<FavoriteIcon assetID={asset?.id ?? null} {gameID}  on:favorited={scrollToSelf} />
 					</Tooltip>
-					<Tooltip rich text="Add '{asset?.data?.name}'">
-						<IconButton icon="add_shopping_cart" on:click={choose} />
+					<Tooltip rich text="Continue with '{asset?.data?.name}'">
+						<IconButton icon="arrow_forward" on:click={choose} />
 					</Tooltip>
 				</div>
 			</span>
@@ -223,8 +223,8 @@
 				<LockIcon {lockStatus} {asset} />
 				{asset?.data?.name}
 				<div class="ml-auto flex items-center g1">
-					<Tooltip rich text="Remove '{asset?.data?.name}'">
-						<IconButton icon="remove_shopping_cart" on:click={unchoose} />
+					<Tooltip rich text="Go back — remove '{asset?.data?.name}'">
+						<IconButton icon="arrow_back" on:click={unchoose} />
 					</Tooltip>
 				</div>
 			</div>

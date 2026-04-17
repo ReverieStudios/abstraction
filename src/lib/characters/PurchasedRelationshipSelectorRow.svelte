@@ -48,7 +48,7 @@
 
     const getPartnerName = (userID: string): string => {
         const name = $characterNames[userID];
-        if (!name) return userID;
+        if (!name || name.toLowerCase() == "my character") return "Unnamed Character";
         return userID === currentUserID ? `${name} (You)` : name;
     };
 </script>

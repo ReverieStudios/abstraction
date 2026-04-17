@@ -172,8 +172,8 @@ $: if (
 	<script src="https://unpkg.com/svelte-drag-drop-touch@0.1.9/dist/svelte-drag-drop-touch.bundled.js"></script>
 </svelte:head>
 
-<div class="p1" id={"chooser-" + selector?.id}>
-    <div class="flex items-center g1">
+<div class="p2" id={"chooser-" + selector?.id}>
+    <div class="flex flex-wrap items-center g1">
 		<LockIcon {lockStatus} asset={selector} />
         <h2 class="mb1">{selector?.data?.name ?? 'Relationships'}</h2>
 		{#if !isChosen && allowSort}<FlagCheck {gameID} {user} {requirements} {limitations} />{/if}
@@ -184,7 +184,7 @@ $: if (
 				<span class="muted">Choice {subselection.on}</span>
 			</div>
 		{/if}
-		<div class="ml-auto flex items-center g1">
+		<div class="ml-auto flex items-center g1 flex-none">
 		{#if allowSort}
 			{#if !isChosen}
 				<Tooltip rich text="Add '{selector?.data?.name }'">
@@ -279,7 +279,8 @@ $: if (
 <Modal title="About Rankings" open={showHelp} on:close={() => (showHelp = false)} let:closeModal={closeModal}>
 	<div class="help-body">
 		<p>You can rank your preferred relationships by dragging them
-			up and down, with your most preferred choice at the top.</p>
+		   up and down, with your most preferred choice at the top.
+		   Tap or click to see each relationship's details.</p>
 		<p>After everyone has made their choices, the character creator will
 			assign relationships based on these rankings, doing its best to 
 			ensure that you get the relationships you want most 
@@ -287,8 +288,10 @@ $: if (
 		<p>When you've finished your character, but before relationships are assigned,
 			your character sheet will show you your rankings. After relationships are assigned,
 			the character sheet will update with which relationship(s) you got, and who you've
-			been matched with!
-		</p>
+			been matched with!</p>
+		<p>It's possible that some characters may have extra relationships, to ensure everyone gets
+			at least {selector?.data?.relationshipsPerCharacter} relationship{selector?.data?.relationshipsPerCharacter > 1 ? 's' : ''}
+			from this group.</p>
 	</div>
 	<svelte:fragment slot="actions">
 		<Button type="button" on:click={closeModal}>Close</Button>

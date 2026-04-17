@@ -121,17 +121,17 @@
 <div class="flex items-start p2" out:slide|global data-showing bind:this={rowEl} id={"asset-" + asset?.id}>
 	{#if !isChosen}
 		<span class="flex-auto flex flex-column" id={"asset-" + asset?.id}>
-			<span class="h3 flex items-center g1">
+			<span class="h3 flex flex-wrap items-center g1">
 				<LockIcon {lockStatus} {asset} />
 				{#if asset?.data?.image}
 					{#await storage.getDownloadURL(asset.data.image) then url}
 						<div class="image" style="background-image:url({url})" />
 					{/await}
 				{/if}
-				{asset?.data?.name}
+				<span class="asset-name">{asset?.data?.name}</span>
 				<FlagCheck {gameID} {user} {requirements} {limitations} />
 
-				<div class="ml-auto flex items-center g1">
+				<div class="ml-auto flex items-center g1 flex-none">
 					<Tooltip rich text="Mark '{asset?.data?.name}' as a favorite">
 						<FavoriteIcon assetID={asset?.id ?? null} {gameID}  on:favorited={scrollToSelf} />
 					</Tooltip>
@@ -143,7 +143,7 @@
 			<div class="fields">
 				{#if $summmaryField}
 					<div>
-						{#if $summmaryField.label}<h4 class="h3">{$summmaryField.label}</h4>{/if}
+						{#if $summmaryField.label}<h4 class="h4">{$summmaryField.label}</h4>{/if}
 						<div class="px2">
 							{#if $summmaryField.type === 'markdown'}
 								<RichViewer value={$summmaryField.text} />
@@ -198,7 +198,7 @@
 													</SmuiIconButton>
 												</Header>
 												<Content>
-													<div class="px2">
+													<div>
 														{#if type === 'markdown'}
 															<RichViewer value={text} />
 														{:else}

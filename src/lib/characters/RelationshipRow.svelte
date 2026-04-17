@@ -50,7 +50,7 @@
     });
 </script>
 
-<div class="flex items-start p2" out:slide|global data-showing bind:this={rowEl} id={"relationship-" + relationship?.id}>
+<div class="flex items-start" out:slide|global data-showing bind:this={rowEl} id={"relationship-" + relationship?.id}>
     <span class="flex-auto flex flex-column" id={"relationship-" + relationship?.id}>
         <span class="h3 flex items-center g1">
             {#if relationship?.data?.image}
@@ -63,7 +63,7 @@
         <div class="fields">
             {#if summmaryField}
                 <div>
-                    {#if summmaryField?.label}<h4 class="h4">{summmaryField.label}</h4>{/if}
+                    {#if summmaryField?.label}<h4 class="h3">{summmaryField.label}</h4>{/if}
                     <div class="px2">
                         {#if summmaryField.type === 'markdown'}
                             <RichViewer value={summmaryField.text} />
@@ -87,7 +87,7 @@
                                         </SmuiIconButton>
                                     </Header>
                                     <Content>
-                                        <div class="px2">
+                                        <div>
                                             {#if type === 'markdown'}
                                                 <RichViewer value={text} />
                                             {:else}
@@ -111,14 +111,14 @@
                                     {#each extraFields as { label, text, type }, i}
                                         <Panel bind:open={extraPanelsOpen[i]} color="secondary">
                                             <Header>
-                                                {#if label}<h4 class="h3">{label}</h4>{/if}
+                                                {#if label}<h4 class="h4">{label}</h4>{/if}
                                                 <SmuiIconButton slot="icon" toggle pressed={extraPanelsOpen[i]}>
                                                     <Icon class="material-icons" on>expand_less</Icon>
                                                     <Icon class="material-icons">expand_more</Icon>
                                                 </SmuiIconButton>
                                             </Header>
                                             <Content>
-                                                <div class="px2">
+                                                <div>
                                                     {#if type === 'markdown'}
                                                         <RichViewer value={text} />
                                                     {:else}

@@ -121,17 +121,17 @@
 <div class="flex items-start p2" out:slide|global data-showing bind:this={rowEl} id={"asset-" + asset?.id}>
 	{#if !isChosen}
 		<span class="flex-auto flex flex-column" id={"asset-" + asset?.id}>
-			<span class="h3 flex items-center g1">
+			<span class="h3 flex flex-wrap items-center g1">
 				<LockIcon {lockStatus} {asset} />
 				{#if asset?.data?.image}
 					{#await storage.getDownloadURL(asset.data.image) then url}
 						<div class="image" style="background-image:url({url})" />
 					{/await}
 				{/if}
-				{asset?.data?.name}
+				<span class="asset-name">{asset?.data?.name}</span>
 				<FlagCheck {gameID} {user} {requirements} {limitations} />
 
-				<div class="ml-auto flex items-center g1">
+				<div class="ml-auto flex items-center g1 flex-none">
 					<Tooltip rich text="Mark '{asset?.data?.name}' as a favorite">
 						<FavoriteIcon assetID={asset?.id ?? null} {gameID}  on:favorited={scrollToSelf} />
 					</Tooltip>
@@ -167,7 +167,7 @@
 											</SmuiIconButton>
 										</Header>
 										<Content>
-											<div class="px2">
+											<div>
 												{#if type === 'markdown'}
 													<RichViewer value={text} />
 												{:else}
@@ -198,7 +198,7 @@
 													</SmuiIconButton>
 												</Header>
 												<Content>
-													<div class="px2">
+													<div>
 														{#if type === 'markdown'}
 															<RichViewer value={text} />
 														{:else}
@@ -261,6 +261,25 @@
 </div>
 
 <style>
+	@media (max-width: 52em) {
+		h4 {
+			margin-top: 2px;
+			margin-bottom: 2px;
+		}
+
+		.accordion-container :global(.smui-paper__content),
+		.accordion-container :global(.smui-paper) {
+			padding-top: 2px !important;
+			padding-bottom: 2px !important;
+			padding-left: 8px !important;
+			padding-right: 8px !important;
+		}
+		.accordion-container :global(.smui-accordion__header__title) {
+			padding-left: 8px !important;
+			padding-right: 8px !important;
+		}
+	}
+
 	.image {
 		background-position: center center;
 		background-size: 70%;

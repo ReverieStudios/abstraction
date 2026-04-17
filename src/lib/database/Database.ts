@@ -1,6 +1,9 @@
 import { Collection } from './Collection';
 import { CollectionDocument } from './CollectionDocument';
 import { DocumentMap } from './DocumentMap';
+import { writable } from 'svelte/store';
+import type { DocType } from './DocType';
+import type { Readable } from 'svelte/store';
 
 import type { Asset } from './types/Assets';
 import type { AssetType } from './types/AssetTypes';
@@ -45,6 +48,32 @@ interface Database {
 	locks?: Collection<Lock> | null;
 }
 
+interface CharacterDocStore extends Readable<DocType<Character> | undefined> {
+	hasLoaded: Readable<boolean>;
+}
+
+const _currentCharDoc = writable<CollectionDocument<Character> | null>(null);
+let _charInnerUnsub: (() => void) | null = null;
+
+const _charData = writable<DocType<Character> | undefined>(undefined);
+const _charLoaded = writable<boolean>(false);
+
+_currentCharDoc.subscribe((doc) => {
+	if (_charInnerUnsub) { _charInnerUnsub(); _charInnerUnsub = null; }
+	if (doc) {
+		_charInnerUnsub = doc.subscribe((val) => _charData.set(val));
+		doc.hasLoaded.subscribe((v) => _charLoaded.set(v));
+	} else {
+		_charData.set(undefined);
+		_charLoaded.set(false);
+	}
+});
+
+export const characterDoc: CharacterDocStore = {
+	subscribe: _charData.subscribe,
+	hasLoaded: { subscribe: _charLoaded.subscribe },
+};
+
 const last: {gameID: string |null, userID: string | null} = {
 	gameID: null,
 	userID: null
@@ -75,6 +104,10 @@ const updateDatabase = () => {
 	database.characters = gameID
 		? new Collection(`games/${gameID}/characters`, { sortBy: 'name' })
 		: null;
+
+	const doc = userID && gameID ? database.characters!.doc(userID) : null;
+	if (doc) doc.subscribe(() => {});
+	_currentCharDoc.set(doc ?? null);
 	database.decisionTree = gameID ? new DocumentMap(`games/${gameID}/data/decisionTree`) : null;
 	
 	database.relationships =  gameID

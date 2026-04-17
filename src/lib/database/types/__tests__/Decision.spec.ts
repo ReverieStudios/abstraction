@@ -17,7 +17,7 @@ describe('Decision typeguards', () => {
   });
 
   it('detects a RelationshipNode', () => {
-    const rel = { treeID: 't1', parentID: 'p1', relationshipIDs: ['r1', 'r2'] } as any;
+    const rel = { treeID: 't1', parentID: 'p1', relationshipSelectorID: 'selector-1' } as any;
     expect(isRelationshipNode(rel)).toBe(true);
     expect(isAssetNode(rel)).toBe(false);
     expect(isStartNode(rel)).toBe(false);

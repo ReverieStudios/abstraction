@@ -233,7 +233,7 @@
 				{type.data.name} ({relationshipsByType?.[type.id]?.length ?? 0})
 			</a>
 			{#if typeId === type.id}
-				<div class="divided pt2" transition:slide|global>
+				<div class="divided pt2" transition:slide>
 					{#each relationshipsOfType as rel (rel.id)}
 						<div class="flex items-center justify-center hover-bg-primary-dark">
 							<a href={getUrl(type.id, null, rel.id)} class="pl2 py1 flex-auto">

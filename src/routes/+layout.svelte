@@ -61,7 +61,7 @@
 </script>
 <Notifications>
 	<Drawer {isSignedIn} {menu}>
-		<main class="main-content px4 py2">
+		<main class="main-content py2">
 			{#if isSignedIn}
 				<Breadcrumb path="{$page.url.pathname}" class="mt-20 ml-10"></Breadcrumb>
 				{#if userID}
@@ -87,6 +87,15 @@
 		position: relative;
 		flex-grow: 1;
 		min-height: 90%;
+		padding-left: 0.5rem;
+		padding-right: 0.5rem;
+	}
+
+	@media (min-width: 52em) {
+		.main-content {
+			padding-left: 4rem;
+			padding-right: 4rem;
+		}
 	}
 	:global(.mdc-drawer-app-content) {
 		transition-property: margin-left;

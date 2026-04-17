@@ -143,7 +143,7 @@
 			<div class="fields">
 				{#if $summmaryField}
 					<div>
-						{#if $summmaryField.label}<h4 class="h4">{$summmaryField.label}</h4>{/if}
+						{#if $summmaryField.label}<h4 class="h3">{$summmaryField.label}</h4>{/if}
 						<div class="px2">
 							{#if $summmaryField.type === 'markdown'}
 								<RichViewer value={$summmaryField.text} />
@@ -167,7 +167,7 @@
 											</SmuiIconButton>
 										</Header>
 										<Content>
-											<div class="px2">
+											<div>
 												{#if type === 'markdown'}
 													<RichViewer value={text} />
 												{:else}
@@ -261,6 +261,25 @@
 </div>
 
 <style>
+	@media (max-width: 52em) {
+		h4 {
+			margin-top: 2px;
+			margin-bottom: 2px;
+		}
+
+		.accordion-container :global(.smui-paper__content),
+		.accordion-container :global(.smui-paper) {
+			padding-top: 2px !important;
+			padding-bottom: 2px !important;
+			padding-left: 8px !important;
+			padding-right: 8px !important;
+		}
+		.accordion-container :global(.smui-accordion__header__title) {
+			padding-left: 8px !important;
+			padding-right: 8px !important;
+		}
+	}
+
 	.image {
 		background-position: center center;
 		background-size: 70%;

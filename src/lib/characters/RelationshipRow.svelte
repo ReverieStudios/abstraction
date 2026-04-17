@@ -144,6 +144,25 @@
 </div>
 
 <style>
+	@media (max-width: 52em) {
+		h4 {
+			margin-top: 2px;
+			margin-bottom: 2px;
+		}
+
+		.accordion-container :global(.smui-paper__content),
+		.accordion-container :global(.smui-paper) {
+			padding-top: 0px !important;
+			padding-bottom: 0px !important;
+			padding-left: 8px !important;
+			padding-right: 8px !important;
+		}
+		.accordion-container :global(.smui-accordion__header__title) {
+			padding-left: 8px !important;
+			padding-right: 8px !important;
+		}
+	}
+
     .image {
         background-position: center center;
         background-size: 70%;

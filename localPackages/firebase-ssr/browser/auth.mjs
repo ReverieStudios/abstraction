@@ -2,6 +2,7 @@ import {
 	getAuth,
 	setPersistence,
 	GoogleAuthProvider,
+	EmailAuthProvider,
 	createUserWithEmailAndPassword,
 	signInWithEmailAndPassword,
 	connectAuthEmulator,
@@ -10,7 +11,9 @@ import {
 	signInWithRedirect,
 	signOut,
 	onAuthStateChanged,
-	onIdTokenChanged
+	onIdTokenChanged,
+	reauthenticateWithCredential,
+	updatePassword
 } from 'firebase/auth';
 
 const unimplemented = () => {
@@ -44,6 +47,14 @@ export const getComponent = (app, emulators) => {
 			decodeToken: () => {},
 			providers: {
 				Google: new GoogleAuthProvider()
+			},
+			getCurrentUser: () => auth.currentUser,
+			changePassword: async (currentPassword, newPassword) => {
+				const user = auth.currentUser;
+				if (!user) throw new Error('No authenticated user');
+				const credential = EmailAuthProvider.credential(user.email, currentPassword);
+				await reauthenticateWithCredential(user, credential);
+				await updatePassword(user, newPassword);
 			},
 			getUser: unimplemented,
 			updateUser: unimplemented,

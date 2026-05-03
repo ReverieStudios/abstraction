@@ -10,6 +10,8 @@
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import FormSigner from './FormSigner.svelte';
+	import { auth } from '$lib/firebase';
+	import { validatePasswordChange, submitPasswordChange } from '$lib/auth/changePassword';
 
 	export let userID: string;
 	export let title = 'User Profile';
@@ -22,7 +24,32 @@
 
 	let updates: string[] | null = null;
 
-	const activateToken = (data) =>
+	let isPasswordUser = false;
+	let passwordResetKey = 0;
+	const resetPasswordForm = () => passwordResetKey++;
+	auth?.onAuthStateChanged((user: import('firebase/auth').User | null) => {
+		isPasswordUser = user?.providerData.some((p: import('firebase/auth').UserInfo) => p.providerId === 'password') ?? false;
+	});
+
+	const changePassword = async (values: import('$lib/auth/changePassword').PasswordChangeValues) => {
+		try {
+			await submitPasswordChange(auth, values);
+			sendNotification({ text: 'Password updated successfully.' });
+		} catch (err: any) {
+			const code = err?.code ?? '';
+			if (code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
+				sendNotification({ text: 'Current password is incorrect.' });
+			} else {
+				sendNotification({ text: 'Something went wrong changing your password.' });
+			}
+			resetPasswordForm();
+		}
+	};
+
+	const validatePassword = validatePasswordChange as (values: object) => Record<string, string>;
+	const submitPasswordForm = changePassword as (values: any) => Promise<void>;
+
+	const activateToken = (data: any) =>
 		fetch('/api/user/activateToken', {
 			method: 'POST',
 			headers: {
@@ -87,6 +114,25 @@
 			<Button>Save</Button>
 		</div>
 	</StoreForm>
+
+	{#if isPasswordUser}
+		{#key passwordResetKey}
+			<Form
+				initialValues={{ currentPassword: '', newPassword: '', confirmPassword: '' }}
+				validate={validatePassword}
+				onSubmit={submitPasswordForm}
+				afterSubmit={resetPasswordForm}
+			>
+				<h3 class="mt3 mb1">Change Password</h3>
+				<div class="flex flex-column g2">
+					<TextField class="fill" label="Current Password" name="currentPassword" type="password" />
+					<TextField class="fill" label="New Password" name="newPassword" type="password" />
+					<TextField class="fill" label="Confirm New Password" name="confirmPassword" type="password" />
+					<Button>Update Password</Button>
+				</div>
+			</Form>
+		{/key}
+	{/if}
 {/if}
 {#if activeTab === 'Unlock Permission Token'}
 	{#if updates}

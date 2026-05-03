@@ -73,6 +73,8 @@ export interface FirebaseAuth {
 	onIdTokenChanged: (nextOrObserver: NextOrObserver<User>) => Unsubscribe;
 	decodeToken: (token: string) => Promise<auth.DecodedIdToken>;
 	providers: FirebaseAuthProviders;
+	getCurrentUser: () => User | null;
+	changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
 	getUser: (uid: string) => Promise<User>;
 	updateUser: (uid: string, data: auth.UpdateRequest) => Promise<User>;
 	deleteUser: (uid: string) => Promise<User>;

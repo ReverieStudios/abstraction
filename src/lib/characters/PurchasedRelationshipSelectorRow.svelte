@@ -1,7 +1,7 @@
 <script lang="ts">
     import type { Docs } from '$lib/database';
     import RelationshipChooser from './RelationshipChooser.svelte';
-    import RelationshipRow from './RelationshipRow.svelte';
+    import PurchasedRelationshipRow from './PurchasedRelationshipRow.svelte';
     import { database } from '$lib/database';
     import { derived, readable, writable } from 'svelte/store';
     import { keyBy } from 'lodash-es';
@@ -56,7 +56,7 @@
 <div>
     {#if !assignment || !assignment.data?.assignedRelationships || assignment.data?.assignedRelationships.length === 0}
         <!-- No assigned relationships: show chooser but disable sorting/moving -->
-        <div class="hover-bg-primary-light p2">
+        <div class="hover-bg-primary-light p2 print-none">
             <RelationshipChooser relationshipSelectorID={selector.id} allowSort={false} enableHelp={enableHelp} {existingRanks}/>
         </div>
     {:else}
@@ -65,32 +65,16 @@
         <div class="divided">
         {#each assignment.data.assignedRelationships as rel}
             {@const relationship = $relationshipsById?.[rel.relationshipID]}
-            <div class="hover-bg-primary-light p2">
-                <RelationshipRow gameID={null} userID={null} user={null} {relationship} />
-                {#if rel.assignedUserIDs?.length}
-                    <div class="partners mt1">
-                        <span class="muted">Assigned:</span>
-                        <div class="flex flex-wrap g1 mt1">
-                            {#if namesLoading}
-                                <span class="partner-chip bg-secondary muted">Loading…</span>
-                            {:else}
-                                {#each [...rel.assignedUserIDs].sort((a, b) => getPartnerName(a).localeCompare(getPartnerName(b))) as userID}
-                                    <span class="partner-chip bg-secondary">{getPartnerName(userID)}</span>
-                                {/each}
-                            {/if}
-                        </div>
-                    </div>
-                {/if}
-            </div>
+            <PurchasedRelationshipRow
+                {relationship}
+                assignedUserIDs={rel.assignedUserIDs ?? []}
+                {getPartnerName}
+                {namesLoading}
+            />
         {/each}
         </div>
     {/if}
 </div>
 
 <style>
-    .partner-chip {
-        padding: 0.2rem 0.6rem;
-        border-radius: 12px;
-        font-weight: 600;
-    }
 </style>

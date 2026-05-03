@@ -36,7 +36,7 @@
 
 {#if asset && $assetType?.data?.hideOnCharacterSheet !== true}
 	<div class="items-center hover-bg-primary-light p2" out:slide|global>
-		<span class="h3 flex items-center g1">
+		<span class="h3 flex items-center g1 bold asset-name">
 			{#if asset?.data?.image}
 				{#await storage.getDownloadURL(asset.data.image) then url}
 					<div class="image" style="background-image:url({url})" />
@@ -71,5 +71,10 @@
 		width: 50px;
 		border-radius: 50%;
 		border: 1px solid #ccc;
+	}
+	@media print {
+		.asset-name {
+			color: #000 !important;
+		}
 	}
 </style>

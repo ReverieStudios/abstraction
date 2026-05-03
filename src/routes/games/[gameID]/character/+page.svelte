@@ -94,7 +94,10 @@
 
 <h2 class="print-only">{$character?.data?.name}</h2>
 {#if $character?.data?.nameLocked}
-	<h2 class="print-none">{$character?.data?.name}</h2>
+	<div class= "flex items-center g2">
+		<h2 class="print-none">{$character?.data?.name}</h2>
+		<IconButton type="button" icon="print" on:click={() => window.print()} />
+	</div>
 {:else if $hasLoaded}
 	<Form
 		class="print-none mt2 mb2 flex g2 items-center"

@@ -13,6 +13,7 @@
 	import Modal from '$lib/ui/Modal.svelte';
 	import { getNotify } from '$lib/ui/Notifications.svelte';
 	import { slide } from 'svelte/transition';
+	import UserSearch from '$lib/ui/UserSearch.svelte';
 
 	const game: Game = $page.data.game;
 	const gameID: string = $page.data.gameID;
@@ -63,19 +64,10 @@
 	}
 	let editingSlot: EditingSlot | null = null;
 	let replaceWithUserID: string = '';
-	let userSearch: string = '';
 
-	$: filteredUsers = ($users ?? []).filter((u) => {
-		// Exclude all current roster members (including the old user — re-selecting is a no-op)
-		if (editingSlot) {
-			if (editingSlot.currentRoster.includes(u.id)) return false;
-		}
-		if (!userSearch) return true;
-		const q = userSearch.toLowerCase();
-		return (
-			u.data.name?.toLowerCase().includes(q) ||
-			u.data.email?.toLowerCase().includes(q)
-		);
+	$: usersExcludingRoster = ($users ?? []).filter((u) => {
+		if (editingSlot && editingSlot.currentRoster.includes(u.id)) return false;
+		return true;
 	});
 
 	// ── User email helpers ─────────────────────────────────────────────────────
@@ -156,7 +148,6 @@
 	const openEdit = (selectorID: string, relationshipID: string, userID: string, roster: string[]) => {
 		editingSlot = { selectorID, relationshipID, oldUserID: userID, currentRoster: roster };
 		replaceWithUserID = '';
-		userSearch = '';
 	};
 
 	// ── Manual override: save ─────────────────────────────────────────────────
@@ -266,29 +257,22 @@
 		</p>
 		<p class="muted h5 mb2">Current roster: {editingSlot.currentRoster.map(getUserName).join(', ')}</p>
 
-		<label for="user-search" class="h4">Search for replacement:</label>
-		<input
-			id="user-search"
-			type="text"
-			placeholder="Name or email…"
-			bind:value={userSearch}
-			class="input mb1"
-		/>
-
-		<div class="user-list mb2 divided">
-			{#each filteredUsers as u (u.id)}
-				<button
-					class="user-option hover-bg-primary-light rounded bg-surface"
-					class:selected={replaceWithUserID === u.id}
-					on:click={() => (replaceWithUserID = u.id)}
-				>
-					<span class="bold">{u.data.name || '(no name)'}</span>
-					<span class="muted h5">{u.data.email}</span>
-				</button>
-			{:else}
-				<p class="muted h5">No users match.</p>
-			{/each}
-		</div>
+		<UserSearch users={usersExcludingRoster} placeholder="Search for replacement…" let:filteredUsers>
+			<div class="user-list mb2 divided">
+				{#each filteredUsers as u (u.id)}
+					<button
+						class="user-option hover-bg-primary-light rounded bg-surface"
+						class:selected={replaceWithUserID === u.id}
+						on:click={() => (replaceWithUserID = u.id)}
+					>
+						<span class="bold">{u.data.name || '(no name)'}</span>
+						<span class="muted h5">{u.data.email}</span>
+					</button>
+				{:else}
+					<p class="muted h5">No users match.</p>
+				{/each}
+			</div>
+		</UserSearch>
 
 		<div class="flex g1">
 			<Button disabled={!replaceWithUserID} on:click={saveEdit}>Save</Button>
@@ -500,16 +484,6 @@
 
 	.rosters {
 		padding-top: 1rem;
-	}
-
-	.input {
-		display: block;
-		width: 100%;
-		padding: 0.5rem;
-		border: 1px solid var(--surface);
-		border-radius: 4px;
-		font-size: 1rem;
-		box-sizing: border-box;
 	}
 
 	.user-list {

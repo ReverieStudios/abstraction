@@ -14,6 +14,7 @@
 	import PurchasedRelationshipSelectorRow from '$lib/characters/PurchasedRelationshipSelectorRow.svelte';
 	import { derived, readable } from 'svelte/store';
 	import type { Readable } from 'svelte/store';
+	import SearchInput from '$lib/ui/SearchInput.svelte';
 	
 	let characters = database.characters;
 	const assetsByID: Readable<Record<string, Docs.Asset>> = derived([database.assets ?? readable([])], ([$assets]) => {
@@ -49,6 +50,24 @@
 		(a: Docs.RelationshipAssignment) => a.data.relationshipSelectorID
 	);
 
+	const usersById = derived(
+		database.users ?? readable([]),
+		($users) => keyBy($users ?? [], 'id')
+	);
+
+	let characterSearch = '';
+	$: filteredCharacters = characterSearch.trim()
+		? ($characters ?? []).filter((c) => {
+				const q = characterSearch.toLowerCase();
+				const u = $usersById[c.id]?.data;
+				return (
+					c.data.name?.toLowerCase().includes(q) ||
+					u?.name?.toLowerCase().includes(q) ||
+					u?.email?.toLowerCase().includes(q)
+				);
+			})
+		: ($characters ?? []);
+
 	const sendNotification = getNotify();
 	const deleteCharacter = (userID: string) => {
 		fetch('/api/character/delete', {
@@ -70,25 +89,10 @@
 				sendNotification({ text: 'Something went wrong' });
 			});
 	};
-	const getUserName = (userID: string) => {
-		return fetch('/api/character/getUser', {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json;charset=utf-8'
-			},
-			body: JSON.stringify({ gameID, userID })
-		})
-			.then((res) => res.json())
-			.then((body) => {
-				if (body.success) {
-					return body.name;
-				} else {
-					return 'Unknown';
-				}
-			})
-			.catch(() => {
-				return 'Unknown';
-			});
+	const getUserLabel = (userID: string) => {
+		const u = $usersById[userID]?.data;
+		if (!u) return '';
+		return u.name ? `${u.name} (${u.email ?? ''})` : (u.email ?? '');
 	};
 </script>
 
@@ -128,14 +132,15 @@
 <div class="content">
 	<h1>Characters</h1>
 
-	<Wrapper class="mb2" items={$characters ?? []} let:item={character}>
+	<SearchInput bind:query={characterSearch} placeholder="Search by character name, player name or email…" />
+	<Wrapper class="mb2" items={filteredCharacters} let:item={character}>
 		<div class="flex bg-primary hover-bg-primary-light items-center pr2">
 			<a href="?character={character.id}" class="block p2 flex-auto">
 				<h4 class="bold h3 my1">
 					{character.data.name ?? character.id}
-					{#await getUserName(character.id) then name}
-						- {name}
-					{/await}
+					{#if getUserLabel(character.id)}
+						- {getUserLabel(character.id)}
+					{/if}
 				</h4>
 			</a>
 			<ConfirmButton on:confirm={() => deleteCharacter(character.id)} />

@@ -25,6 +25,13 @@
 	const relationships = database.relationships;
 	const relationshipAssignments = database.relationshipAssignments;
 	const users = database.users;
+	const characters = database.characters;
+
+	// Set of userIDs that have a character in this game
+	const characterUserIDs: Readable<Set<string>> = derived(
+		characters ?? readable([]),
+		($chars) => new Set(($chars ?? []).map((c) => c.id))
+	);
 
 	// ── Derived lookups ────────────────────────────────────────────────────────
 	const relationshipsById: Readable<Record<string, Docs.Relationship>> = derived(
@@ -35,6 +42,12 @@
 	const usersById: Readable<Record<string, Docs.User>> = derived(
 		users ?? readable([]),
 		($users) => keyBy($users ?? [], 'id')
+	);
+
+	// Map userID → character name (character.id === userID)
+	const characterNameByUserID: Readable<Record<string, string>> = derived(
+		characters ?? readable([]),
+		($chars) => Object.fromEntries(($chars ?? []).map((c) => [c.id, c.data?.name ?? '']))
 	);
 
 	// Group assignments by selectorID for quick lookup
@@ -66,9 +79,18 @@
 	let replaceWithUserID: string = '';
 
 	$: usersExcludingRoster = ($users ?? []).filter((u) => {
+		if (!$characterUserIDs.has(u.id)) return false;
 		if (editingSlot && editingSlot.currentRoster.includes(u.id)) return false;
 		return true;
 	});
+
+	// ── Relationship count helper ──────────────────────────────────────────────
+	// Returns how many relationships a user's character has for the given selector
+	const getAssignmentCount = (userID: string, selectorID: string): number => {
+		const assignments = $assignmentsBySelectorId[selectorID] ?? [];
+		const doc = assignments.find((a) => a.data.userID === userID);
+		return doc?.data?.assignedRelationships?.length ?? 0;
+	};
 
 	// ── User email helpers ─────────────────────────────────────────────────────
 	const getUserEmail = (userID: string): string => {
@@ -79,6 +101,13 @@
 		const u = $usersById[userID]?.data;
 		if (!u) return userID;
 		return u.name || u.email || userID;
+	};
+
+	// Returns the display name only if it differs from the email, otherwise null
+	const getUserDisplayName = (userID: string): string | null => {
+		const u = $usersById[userID]?.data;
+		if (!u || !u.name || u.name === u.email) return null;
+		return u.name;
 	};
 
 	// ── Check if any assignments exist for a selector ──────────────────────────
@@ -150,29 +179,69 @@
 		replaceWithUserID = '';
 	};
 
+	// ── Remove a user from a specific relationship assignment ────────────────
+	const removeUserAssignment = async (selectorID: string, relationshipID: string, userID: string) => {
+		const selectorAssignments = $assignmentsBySelectorId[selectorID] ?? [];
+		const userDoc = selectorAssignments.find((a) => a.data.userID === userID);
+		if (!userDoc) return;
+
+		try {
+			await Promise.all([
+				// Remove just this relationship from the user's own doc
+				userDoc.update({
+					assignedRelationships: (userDoc.data.assignedRelationships ?? []).filter(
+						(ar) => ar.relationshipID !== relationshipID
+					)
+				}),
+				// Strip the user from peer docs for this specific relationship
+				...selectorAssignments
+					.filter((a) => a.data.userID !== userID)
+					.filter((a) =>
+						(a.data.assignedRelationships ?? []).some(
+							(ar) => ar.relationshipID === relationshipID && ar.assignedUserIDs.includes(userID)
+						)
+					)
+					.map((a) => {
+						const updated = (a.data.assignedRelationships ?? []).map((ar) =>
+							ar.relationshipID === relationshipID
+								? { ...ar, assignedUserIDs: ar.assignedUserIDs.filter((id) => id !== userID) }
+								: ar
+						);
+						return a.update({ assignedRelationships: updated });
+					})
+			]);
+			sendNotification({ text: 'Assignment removed' });
+		} catch (err) {
+			sendNotification({ text: 'Error removing assignment' });
+		}
+	};
+
 	// ── Manual override: save ─────────────────────────────────────────────────
 	const saveEdit = async () => {
 		if (!editingSlot || !replaceWithUserID) return;
 		const { selectorID, relationshipID, oldUserID, currentRoster } = editingSlot;
+		const isFillingEmptySlot = oldUserID === '__empty__';
 
 		// Guard: new user must not already be in the roster
-		if (currentRoster.filter((id) => id !== oldUserID).includes(replaceWithUserID)) {
+		if (currentRoster.includes(replaceWithUserID)) {
 			sendNotification({ text: 'That user is already in this relationship' });
 			return;
 		}
 
-		// No-op: same user selected — just close
-		if (replaceWithUserID === oldUserID) {
+		// No-op: same user selected — just close (only possible in replace mode)
+		if (!isFillingEmptySlot && replaceWithUserID === oldUserID) {
 			editingSlot = null;
 			return;
 		}
 
-		// New roster: swap old user out, new user in
-		const newRoster = currentRoster.map((id) => (id === oldUserID ? replaceWithUserID : id));
+		// New roster: add new user (empty slot) or swap old user out
+		const newRoster = isFillingEmptySlot
+			? [...currentRoster, replaceWithUserID]
+			: currentRoster.map((id) => (id === oldUserID ? replaceWithUserID : id));
 
 		// All users whose assignment docs need updating:
-		// everyone in the new roster + the old user (to remove the relationship)
-		const allAffected = new Set([...newRoster, oldUserID]);
+		// everyone in the new roster + (if replacing) the old user (to remove the relationship)
+		const allAffected = new Set([...newRoster, ...(isFillingEmptySlot ? [] : [oldUserID])]);
 		const selectorAssignments = $assignmentsBySelectorId[selectorID] ?? [];
 
 		try {
@@ -182,7 +251,7 @@
 					if (!doc) return;
 					const existing = doc.data.assignedRelationships ?? [];
 					let updated: { relationshipID: string; assignedUserIDs: string[] }[];
-					if (uid === oldUserID) {
+					if (!isFillingEmptySlot && uid === oldUserID) {
 						// Remove this relationship from the old user's assignments
 						updated = existing.filter((r) => r.relationshipID !== relationshipID);
 					} else {
@@ -252,21 +321,32 @@
 	{#if editingSlot}
 		{@const rel = $relationshipsById[editingSlot.relationshipID]}
 		<p class="mb1">
-			Replacing <strong>{getUserName(editingSlot.oldUserID)}</strong>
-			in <strong>{rel?.data?.name ?? editingSlot.relationshipID}</strong>
+			{#if editingSlot.oldUserID === '__empty__'}
+				Adding a user to <strong>{rel?.data?.name ?? editingSlot.relationshipID}</strong>
+			{:else}
+				Replacing <strong>{getUserName(editingSlot.oldUserID)}</strong>
+				in <strong>{rel?.data?.name ?? editingSlot.relationshipID}</strong>
+			{/if}
 		</p>
 		<p class="muted h5 mb2">Current roster: {editingSlot.currentRoster.map(getUserName).join(', ')}</p>
 
-		<UserSearch users={usersExcludingRoster} placeholder="Search for replacement…" let:filteredUsers>
+		<UserSearch users={usersExcludingRoster} placeholder="Search by character, name or email…" extraSearchTerms={$characterNameByUserID} let:filteredUsers>
 			<div class="user-list mb2 divided">
 				{#each filteredUsers as u (u.id)}
+					{@const assignmentCount = getAssignmentCount(u.id, editingSlot.selectorID)}
+					{@const maxPerChar = $relationshipSelectors?.find(s => s.id === editingSlot.selectorID)?.data?.relationshipsPerCharacter ?? null}
+					{@const characterName = $characterNameByUserID[u.id] ?? '(no character)'}
+					{@const displayName = u.data.name && u.data.name !== u.data.email ? u.data.name : null}
 					<button
 						class="user-option hover-bg-primary-light rounded bg-surface"
 						class:selected={replaceWithUserID === u.id}
 						on:click={() => (replaceWithUserID = u.id)}
 					>
-						<span class="bold">{u.data.name || '(no name)'}</span>
-						<span class="muted h5">{u.data.email}</span>
+						<span class="bold">{characterName}{displayName ? ` (${displayName})` : ''}</span>
+						<span class="muted h5">
+							{u.data.email}
+							· {assignmentCount}{maxPerChar != null ? `/${maxPerChar}` : ''} relationship{assignmentCount !== 1 ? 's' : ''}
+						</span>
 					</button>
 				{:else}
 					<p class="muted h5">No users match.</p>
@@ -374,22 +454,45 @@
 											{#if userIDs.length === 0}
 												<p class="muted h5">No one assigned yet.</p>
 											{:else}
-												<!-- Group into tuples of `size` -->
+												<!-- Group into tuples of `size`, padding short tuples with null slots -->
 												{@const tupleSize = rel?.data?.size ?? 2}
-												{#each Array.from({ length: Math.ceil(userIDs.length / tupleSize) }, (_, i) => userIDs.slice(i * tupleSize, (i + 1) * tupleSize)) as tuple, tupleIndex}
+												{#each Array.from({ length: Math.ceil(userIDs.length / tupleSize) }, (_, i) => {
+													const slice = userIDs.slice(i * tupleSize, (i + 1) * tupleSize);
+													while (slice.length < tupleSize) slice.push(null);
+													return slice;
+												}) as tuple, tupleIndex}
 													<div class="tuple-row flex items-center g1 mb1 p1 rounded bg-secondary">
 														<span class="muted h5 tuple-label">Group {tupleIndex + 1}</span>
 														<div class="flex flex-wrap g1 flex-auto">
 															{#each tuple as userID}
-															<div class="user-chip bg-surface flex items-center g1">
-																<span>{getUserEmail(userID)}</span>
-																<IconButton
-																	icon="edit"
-																	title="Replace this user"
-																	on:click={() => openEdit(selector.id, relationshipID, userID, userIDs)}
-																/>
-															</div>
-														{/each}
+																{@const displayName = getUserDisplayName(userID)}
+																{#if userID}
+																	<div class="user-chip bg-surface flex items-center g1">
+																		<div class="flex flex-column">
+																			<span>{$characterNameByUserID[userID] ?? '(no character)'}{displayName ? ` (${displayName})` : ''}</span>
+																			<span class="muted h6">{getUserEmail(userID)}</span>
+																		</div>
+																		<IconButton
+																			icon="edit"
+																			title="Replace this user"
+																			on:click={() => openEdit(selector.id, relationshipID, userID, userIDs.filter(Boolean))}
+																		/>
+																		<ConfirmButton
+																			on:confirm={() => removeUserAssignment(selector.id, relationshipID, userID)}
+																			title="Remove this user's assignment"
+																		/>
+																	</div>
+																{:else}
+																	<div class="user-chip bg-surface flex items-center g1 empty-slot">
+																		<span class="muted">Empty slot</span>
+																		<IconButton
+																			icon="person_add"
+																			title="Add a user to this slot"
+																			on:click={() => openEdit(selector.id, relationshipID, '__empty__', userIDs.filter(Boolean))}
+																		/>
+																	</div>
+																{/if}
+															{/each}
 														</div>
 													</div>
 												{/each}
@@ -475,6 +578,11 @@
 		border-radius: 8px;
 		padding: 0.2rem 0.5rem;
 		font-size: 0.85rem;
+	}
+
+	.empty-slot {
+		border-style: dashed;
+		opacity: 0.7;
 	}
 
 	.unassigned {

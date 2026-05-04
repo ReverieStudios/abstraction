@@ -6,6 +6,7 @@
 
 	export let users: Docs.User[] = [];
 	export let placeholder = 'Search by name or email…';
+	export let extraSearchTerms: Record<string, string> = {};
 
 	let query = '';
 
@@ -13,7 +14,9 @@
 		? users.filter((u) => {
 				const q = query.toLowerCase();
 				return (
-					u.data.name?.toLowerCase().includes(q) || u.data.email?.toLowerCase().includes(q)
+					u.data.name?.toLowerCase().includes(q) ||
+					u.data.email?.toLowerCase().includes(q) ||
+					extraSearchTerms[u.id]?.toLowerCase().includes(q)
 				);
 			})
 		: users;

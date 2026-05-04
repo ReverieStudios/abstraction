@@ -25,6 +25,7 @@
 	import { goto } from '$app/navigation';
 	import type { Docs } from '$lib/database/types';
 	import type { Game } from '$lib/database/types/Game';
+	import UserSearch from '$lib/ui/UserSearch.svelte';
 
 	export let game: Game;
 	const { gameID } = $page.params;
@@ -78,15 +79,17 @@
 	<h2 class="text-primary-400 uppercase font-medium flex justify-between">
 		{selectedFlag.data.name}
 	</h2>
-	{#each $users as user (user.id)}
-		<div class="flex flex-row">
-			<Checkbox
-				on:change={updateUserFlag(user, selectedFlag)}
-				label={user.data.name || user.id}
-				checked={userHasFlag(user, selectedFlag)}
-			/>
-		</div>
-	{/each}
+	<UserSearch users={$users} let:filteredUsers>
+		{#each filteredUsers as user (user.id)}
+			<div class="flex flex-row">
+				<Checkbox
+					on:change={updateUserFlag(user, selectedFlag)}
+					label="{user.data.name || user.id}{user.data.email ? ' (' + user.data.email + ')' : ''}"
+					checked={userHasFlag(user, selectedFlag)}
+				/>
+			</div>
+		{/each}
+	</UserSearch>
 </Modal>
 
 <Modal open={tokenGeneration} on:close={() => (tokenGeneration = false)} let:closeModal>

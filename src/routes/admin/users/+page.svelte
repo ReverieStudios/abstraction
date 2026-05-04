@@ -14,6 +14,7 @@
 	import Icon from '$lib/ui/Icon.svelte';
 	import Tooltip from '$lib/ui/Tooltip.svelte';
 	import { getHighestRole, roleToClaim } from 'lib/permissions';
+	import UserSearch from '$lib/ui/UserSearch.svelte';
 
 	const { users, games, forms } = database;
 
@@ -30,8 +31,8 @@
 	const updateUser = async ({ roles }: { roles: User['roles'] }) => {
 			await editing.update({ roles });
 
-			const highestRole = getHighestRole(roles); // returns User.AccountType
-			const claimRole = roleToClaim(highestRole); // string or null
+			const highestRole = getHighestRole(roles);
+			const claimRole = roleToClaim(highestRole);
 
 			await fetch('/api/user/manage/grantRole', {
 				method: 'POST',
@@ -170,7 +171,8 @@
 </Modal>
 
 <div class="flex flex-column mx2 divided bg-primary rounded">
-	{#each $users as user}
+	<UserSearch users={$users} let:filteredUsers>
+	{#each filteredUsers as user}
 		{@const formData = checkForms(user.data.forms || {})}
 		<div class="p2 flex justify-between">
 			<a href="?user={user.id}">
@@ -186,6 +188,7 @@
 			</span>
 		</div>
 	{/each}
+	</UserSearch>
 </div>
 
 <style>

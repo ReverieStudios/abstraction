@@ -61,14 +61,6 @@
 			.then((body) => {
 				if (body.updates) {
 					updates = body.updates;
-					// TODO: DO we need to update the user object in the page data?
-					// session.update(($session) => ({
-					// 	...$session,
-					// 	user: {
-					// 		...$session.user,
-					// 		...body.user
-					// 	}
-					// }));
 				} else if (body.noclaims) {
 					sendNotification({ text: 'Token appears to be invalid.' });
 				} else {

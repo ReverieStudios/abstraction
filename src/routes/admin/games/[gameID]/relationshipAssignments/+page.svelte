@@ -53,6 +53,7 @@
 	// ── Algorithm execution state ──────────────────────────────────────────────
 	let running: Record<string, boolean> = {};
 	let clearing: Record<string, boolean> = {};
+	let sharing: Record<string, boolean> = {};
 
 	// ── Manual edit state ──────────────────────────────────────────────────────
 	// Editing means: swap a specific user out of a specific relationship
@@ -141,6 +142,56 @@
 			sendNotification({ text: 'Network error clearing assignments' });
 		} finally {
 			clearing = { ...clearing, [selectorID]: false };
+		}
+	};
+
+	// ── Share assignments ──────────────────────────────────────────────────────
+	const isSelectorShared = (selectorID: string): boolean => {
+		const assignments = $assignmentsBySelectorId[selectorID] ?? [];
+		const withAssignments = assignments.filter(
+			(a) => Array.isArray(a.data.assignedRelationships) && a.data.assignedRelationships.length > 0
+		);
+		if (withAssignments.length === 0) return false;
+		return withAssignments.every((a) =>
+			(a.data.assignedRelationships ?? []).every((r) => r.shared === true)
+		);
+	};
+
+	const isRelationshipShared = (selectorID: string, relationshipID: string): boolean => {
+		const assignments = $assignmentsBySelectorId[selectorID] ?? [];
+		for (const a of assignments) {
+			const entry = (a.data.assignedRelationships ?? []).find(
+				(r) => r.relationshipID === relationshipID
+			);
+			if (entry) return entry.shared === true;
+		}
+		return false;
+	};
+
+	const shareRelationships = async (selectorID: string, shared: boolean, relationshipID?: string) => {
+		const key = relationshipID ? `${selectorID}:${relationshipID}` : selectorID;
+		sharing = { ...sharing, [key]: true };
+		try {
+			const res = await fetch('/api/relationships/share', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					gameID,
+					relationshipSelectorID: selectorID,
+					shared,
+					...(relationshipID ? { relationshipID } : {})
+				})
+			});
+			const body = await res.json();
+			if (body.success) {
+				sendNotification({ text: shared ? 'Shared with participants' : 'Hidden from participants' });
+			} else {
+				sendNotification({ text: `Error: ${body.message ?? 'Unknown error'}` });
+			}
+		} catch (err) {
+			sendNotification({ text: 'Network error sharing assignments' });
+		} finally {
+			sharing = { ...sharing, [key]: false };
 		}
 	};
 
@@ -326,9 +377,23 @@
 
 						<div class="flex g1 items-center">
 							{#if selectorHasAssignments}
-								<span class="chip bg-success text-on-success">
-									<Icon>check_circle</Icon> Assigned
-								</span>
+							{@const isSelectorSharedNow = isSelectorShared(selector.id)}
+							<span class="chip bg-success text-on-success">
+								<Icon>check_circle</Icon> Assigned
+							</span>
+							{#if sharing[selector.id]}
+								<Spinner />
+							{:else}
+								<button
+									class="share-toggle"
+									class:active={isSelectorSharedNow}
+									title={isSelectorSharedNow ? 'Unshare with participants' : 'Share with participants'}
+									on:click={() => shareRelationships(selector.id, !isSelectorSharedNow)}
+								>
+									<Icon>{isSelectorSharedNow ? 'visibility' : 'visibility_off'}</Icon>
+									{isSelectorSharedNow ? 'Shared' : 'Share with participants'}
+								</button>
+							{/if}
 							<ConfirmButton on:confirm={() => clearAssignments(selector.id)} />
 							{:else}
 								{#if isRunning}
@@ -362,19 +427,32 @@
 								<div class="rosters">
 									{#each rosters as { relationshipID, userIDs } (relationshipID)}
 										{@const rel = $relationshipsById[relationshipID]}
-										<div class="roster-section mb3">
-											<div class="flex items-center g1 mb1">
-												<h3 class="my0">{rel?.data?.name ?? relationshipID}</h3>
-												<span class="chip bg-secondary">
-													{userIDs.length} / {rel?.data?.capacity > 0 ? rel.data.capacity : '∞'}
-													· size {rel?.data?.size ?? 2}
-												</span>
-											</div>
-
-											{#if userIDs.length === 0}
-												<p class="muted h5">No one assigned yet.</p>
+									{@const isRelShared = isRelationshipShared(selector.id, relationshipID)}
+									<div class="roster-section mb3">
+										<div class="flex items-center g1 mb1">
+											<h3 class="my0">{rel?.data?.name ?? relationshipID}</h3>
+											<span class="chip bg-secondary">
+												{userIDs.length} / {rel?.data?.capacity > 0 ? rel.data.capacity : '∞'}
+												· size {rel?.data?.size ?? 2}
+											</span>
+											{#if sharing[`${selector.id}:${relationshipID}`]}
+												<Spinner />
 											{:else}
-												<!-- Group into tuples of `size` -->
+												<button
+													class="share-toggle share-toggle--sm"
+													class:active={isRelShared}
+													title={isRelShared ? 'Unshare with participants' : 'Share with participants'}
+													on:click={() => shareRelationships(selector.id, !isRelShared, relationshipID)}
+												>
+													<Icon>{isRelShared ? 'visibility' : 'visibility_off'}</Icon>
+												</button>
+											{/if}
+									</div>
+
+									{#if userIDs.length === 0}
+										<p class="muted h5">No one assigned yet.</p>
+									{:else}
+										<!-- Group into tuples of `size` -->
 												{@const tupleSize = rel?.data?.size ?? 2}
 												{#each Array.from({ length: Math.ceil(userIDs.length / tupleSize) }, (_, i) => userIDs.slice(i * tupleSize, (i + 1) * tupleSize)) as tuple, tupleIndex}
 													<div class="tuple-row flex items-center g1 mb1 p1 rounded bg-secondary">
@@ -484,6 +562,31 @@
 
 	.rosters {
 		padding-top: 1rem;
+	}
+
+	.share-toggle {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.25rem;
+		background: none;
+		border: 1px solid var(--surface);
+		border-radius: 12px;
+		padding: 0.15rem 0.6rem;
+		cursor: pointer;
+		color: inherit;
+		font-size: 0.8rem;
+		white-space: nowrap;
+	}
+
+	.share-toggle.active {
+		background: var(--primary);
+		color: var(--on-primary);
+		border-color: var(--primary);
+	}
+
+	.share-toggle--sm {
+		padding: 0.1rem 0.35rem;
+		font-size: 0.75rem;
 	}
 
 	.user-list {

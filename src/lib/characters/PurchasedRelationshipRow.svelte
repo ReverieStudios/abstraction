@@ -8,6 +8,7 @@
 
 	export let relationship: Docs.Relationship | null = null;
 	export let assignedUserIDs: string[] = [];
+	export let shared: boolean = false;
 	export let getPartnerName: (userID: string) => string = (id) => id;
 	export let namesLoading: boolean = false;
 
@@ -46,7 +47,7 @@
 				</div>
 			</div>
 		{/each}
-		{#if assignedUserIDs.length > 0}
+		{#if assignedUserIDs.length > 0 && shared}
 			<div class="partners mt1">
 				<span class="">Assigned:</span>
 				<div class="flex flex-wrap g1 mt1">

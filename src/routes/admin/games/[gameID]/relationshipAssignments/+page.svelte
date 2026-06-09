@@ -99,6 +99,17 @@
 		).length;
 	};
 
+	// ── Count participants with rankings but no assignment yet ─────────────────
+	const countUnassigned = (selectorID: string): number => {
+		const assignments = $assignmentsBySelectorId[selectorID] ?? [];
+		return assignments.filter(
+			(a) =>
+				Array.isArray(a.data.relationshipRankings) &&
+				a.data.relationshipRankings.length > 0 &&
+				(!Array.isArray(a.data.assignedRelationships) || a.data.assignedRelationships.length === 0)
+		).length;
+	};
+
 	// ── Run the matching algorithm ─────────────────────────────────────────────
 	const runAlgorithm = async (selectorID: string) => {
 		running = { ...running, [selectorID]: true };
@@ -300,6 +311,7 @@
 			{#each $relationshipSelectors as selector (selector.id)}
 				{@const selectorHasAssignments = hasAssignments(selector.id)}
 				{@const rankingCount = countRankings(selector.id)}
+				{@const unassignedCount = countUnassigned(selector.id)}
 				{@const isRunning = running[selector.id]}
 				{@const isClearing = clearing[selector.id]}
 				{@const isExpanded = $expanded[selector.id] ?? false}
@@ -329,17 +341,16 @@
 								<span class="chip bg-success text-on-success">
 									<Icon>check_circle</Icon> Assigned
 								</span>
-							<ConfirmButton on:confirm={() => clearAssignments(selector.id)} />
-							{:else}
+								<ConfirmButton on:confirm={() => clearAssignments(selector.id)} />
+							{/if}
+							{#if unassignedCount > 0}
 								{#if isRunning}
 									<Spinner />
 									<span class="muted">Running…</span>
 								{:else}
-									<Button
-										disabled={rankingCount === 0}
-										on:click={() => runAlgorithm(selector.id)}
-									>
-										<Icon>auto_awesome</Icon> Run Algorithm
+									<Button on:click={() => runAlgorithm(selector.id)}>
+										<Icon>auto_awesome</Icon>
+										{selectorHasAssignments ? 'Run for New Participants' : 'Run Algorithm'}
 									</Button>
 								{/if}
 							{/if}

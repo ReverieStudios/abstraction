@@ -374,4 +374,251 @@ describe('POST /api/relationships/assignRelationships', () => {
     const writtenPaths = batchOps.map((op) => op.path);
     expect(writtenPaths.every((p) => !p.includes('user-no-rank'))).toBe(true);
   });
+
+  // ── Incremental matchmaking ─────────────────────────────────────────────────
+
+  it('returns success with assignments=0 when all participants are already assigned', async () => {
+    // All docs have non-empty assignedRelationships
+    assignmentDocs = Array.from({ length: 5 }, (_, i) =>
+      makeDoc(`${SELECTOR_ID}-user-${i}`, {
+        userID: `user-${i}`,
+        relationshipSelectorID: SELECTOR_ID,
+        relationshipRankings: shuffle([...relationshipIDs]),
+        assignedRelationships: [{ relationshipID: relationshipIDs[0], assignedUserIDs: [`user-${i}`] }]
+      })
+    );
+
+    const res = await POST(makeEvent({ gameID: GAME_ID, relationshipSelectorID: SELECTOR_ID }));
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(body.assignments).toBe(0);
+    expect(batchOps).toHaveLength(0); // nothing to write
+  });
+
+  it('only matchmakes new participants when some are already assigned', async () => {
+    const ASSIGNED_COUNT = 10;
+    const NEW_COUNT = 5;
+
+    // 10 already-assigned participants
+    const alreadyAssignedDocs = Array.from({ length: ASSIGNED_COUNT }, (_, i) =>
+      makeDoc(`${SELECTOR_ID}-existing-${i}`, {
+        userID: `existing-${i}`,
+        relationshipSelectorID: SELECTOR_ID,
+        relationshipRankings: shuffle([...relationshipIDs]),
+        assignedRelationships: [
+          { relationshipID: relationshipIDs[i % NUM_POSTS], assignedUserIDs: [`existing-${i}`, `existing-${(i + 1) % ASSIGNED_COUNT}`] }
+        ]
+      })
+    );
+
+    // 5 new participants with rankings but no assignments
+    const newDocs = Array.from({ length: NEW_COUNT }, (_, i) =>
+      makeDoc(`${SELECTOR_ID}-newuser-${i}`, {
+        userID: `newuser-${i}`,
+        relationshipSelectorID: SELECTOR_ID,
+        relationshipRankings: shuffle([...relationshipIDs]),
+        assignedRelationships: []
+      })
+    );
+
+    assignmentDocs = [...alreadyAssignedDocs, ...newDocs];
+
+    const res = await POST(makeEvent({ gameID: GAME_ID, relationshipSelectorID: SELECTOR_ID }));
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    // assignments count = number of new participants processed
+    expect(body.assignments).toBe(NEW_COUNT);
+
+    // All written paths involve newuser- or existing- (existing patched if their rel changed)
+    const newUserPaths = batchOps.map((op) => op.path).filter((p) => p.includes('newuser-'));
+    expect(newUserPaths.length).toBe(NEW_COUNT);
+  });
+
+  it('reduces post capacity by the number of already-assigned users', async () => {
+    // rel-0 has capacity 2 and is already full (2 existing users)
+    const fullRelID = 'rel-0';
+
+    const alreadyAssignedDocs = [
+      makeDoc(`${SELECTOR_ID}-ea-0`, {
+        userID: 'ea-0',
+        relationshipSelectorID: SELECTOR_ID,
+        relationshipRankings: [fullRelID, ...relationshipIDs.filter((r) => r !== fullRelID)],
+        assignedRelationships: [{ relationshipID: fullRelID, assignedUserIDs: ['ea-0', 'ea-1'] }]
+      }),
+      makeDoc(`${SELECTOR_ID}-ea-1`, {
+        userID: 'ea-1',
+        relationshipSelectorID: SELECTOR_ID,
+        relationshipRankings: [fullRelID, ...relationshipIDs.filter((r) => r !== fullRelID)],
+        assignedRelationships: [{ relationshipID: fullRelID, assignedUserIDs: ['ea-0', 'ea-1'] }]
+      })
+    ];
+
+    // New user who ranks rel-0 first (but it's full)
+    const newDoc = makeDoc(`${SELECTOR_ID}-new-0`, {
+      userID: 'new-0',
+      relationshipSelectorID: SELECTOR_ID,
+      relationshipRankings: [fullRelID, ...relationshipIDs.filter((r) => r !== fullRelID)],
+      assignedRelationships: []
+    });
+
+    assignmentDocs = [...alreadyAssignedDocs, newDoc];
+
+    // Relationships: rel-0 has capacity exactly 2 (now full)
+    const { database } = await import('$lib/database');
+    const cappedRels = relationshipIDs.map((id, i) =>
+      makeDoc(id, { name: `Rel ${i}`, capacity: id === fullRelID ? 2 : 50, size: 2, type: '', fields: {} })
+    );
+    vi.mocked(database.relationships!.doc).mockImplementation((id: string) => ({
+      read: vi.fn(async () => cappedRels.find((r) => r.id === id))
+    }) as any);
+
+    const res = await POST(makeEvent({ gameID: GAME_ID, relationshipSelectorID: SELECTOR_ID }));
+    const body = await res.json();
+    expect(body.success).toBe(true);
+
+    // new-0 must NOT have been assigned to rel-0 (it's at capacity)
+    const newUserOp = batchOps.find((op) => op.path.includes('new-0'));
+    expect(newUserOp).toBeDefined();
+    const assignedRels = (newUserOp!.data as { assignedRelationships: { relationshipID: string }[] })
+      .assignedRelationships.map((ar) => ar.relationshipID);
+    expect(assignedRels).not.toContain(fullRelID);
+
+    // Restore
+    vi.mocked(database.relationships!.doc).mockImplementation((id: string) => ({
+      read: vi.fn(async () => relationships.find((r) => r.id === id))
+    }) as any);
+  });
+
+  it('patches existing participants docs when new members join their relationship', async () => {
+    // E1 is assigned to rel-0. A new user N1 also gets rel-0 assigned.
+    // E1's doc should be updated with the new combined assignedUserIDs.
+    const sharedRelID = relationshipIDs[0];
+
+    const e1Doc = makeDoc(`${SELECTOR_ID}-e1`, {
+      userID: 'e1',
+      relationshipSelectorID: SELECTOR_ID,
+      // E1 ranked rel-0 first but didn't get it (impossible in isolation, but we
+      // force it via alreadyAssigned: they *are* assigned to it already)
+      relationshipRankings: [sharedRelID, ...relationshipIDs.slice(1)],
+      assignedRelationships: [
+        { relationshipID: sharedRelID, assignedUserIDs: ['e1'] } // incomplete tuple
+      ]
+    });
+
+    // New participant who ranks rel-0 first
+    const n1Doc = makeDoc(`${SELECTOR_ID}-n1`, {
+      userID: 'n1',
+      relationshipSelectorID: SELECTOR_ID,
+      relationshipRankings: [sharedRelID, ...relationshipIDs.slice(1)],
+      assignedRelationships: []
+    });
+
+    assignmentDocs = [e1Doc, n1Doc];
+
+    // rel-0 has capacity 1 remaining (1 existing, base capacity 2)
+    const { database } = await import('$lib/database');
+    const patchRels = relationshipIDs.map((id, i) =>
+      makeDoc(id, { name: `Rel ${i}`, capacity: 2, size: 2, type: '', fields: {} })
+    );
+    vi.mocked(database.relationships!.doc).mockImplementation((id: string) => ({
+      read: vi.fn(async () => patchRels.find((r) => r.id === id))
+    }) as any);
+
+    const res = await POST(makeEvent({ gameID: GAME_ID, relationshipSelectorID: SELECTOR_ID }));
+    const body = await res.json();
+    expect(body.success).toBe(true);
+
+    // E1's doc should be updated with n1 in the assignedUserIDs for rel-0
+    const e1Op = batchOps.find((op) => op.path.includes(`${SELECTOR_ID}-e1`));
+    expect(e1Op).toBeDefined();
+    const e1Rels = (e1Op!.data as { assignedRelationships: { relationshipID: string; assignedUserIDs: string[] }[] })
+      .assignedRelationships;
+    const sharedRel = e1Rels.find((ar) => ar.relationshipID === sharedRelID);
+    expect(sharedRel).toBeDefined();
+    expect(sharedRel!.assignedUserIDs).toContain('e1');
+    expect(sharedRel!.assignedUserIDs).toContain('n1');
+
+    // Restore
+    vi.mocked(database.relationships!.doc).mockImplementation((id: string) => ({
+      read: vi.fn(async () => relationships.find((r) => r.id === id))
+    }) as any);
+  });
+
+  it('uses existing ranked-but-unassigned users as fill candidates for new-round tuples', async () => {
+    // Scenario: E1 is already assigned to rel-0. They also ranked rel-1 (rank 2) but didn't get it.
+    // N1 is a new participant who gets matched to rel-1 (the only new match, size 2 tuple → needs 1 fill).
+    // fillTuples should pull E1 in as the fill candidate for rel-1.
+    const rel0 = 'rel-0';
+    const rel1 = 'rel-1';
+    const FILL_SELECTOR_ID = 'fill-selector';
+
+    const fillSelector = makeDoc(FILL_SELECTOR_ID, {
+      name: 'Fill Test Selector',
+      relationshipIDs: [rel0, rel1],
+      relationshipsPerCharacter: 1
+    });
+
+    const fillRels = [
+      makeDoc(rel0, { name: 'Rel 0', capacity: 0, size: 2, type: '', fields: {} }),
+      makeDoc(rel1, { name: 'Rel 1', capacity: 0, size: 2, type: '', fields: {} })
+    ];
+
+    const { database } = await import('$lib/database');
+    vi.mocked(database.relationshipSelectors!.doc).mockReturnValueOnce({
+      read: vi.fn(async () => fillSelector)
+    } as any);
+    vi.mocked(database.relationships!.doc).mockImplementation((id: string) => ({
+      read: vi.fn(async () => fillRels.find((r) => r.id === id))
+    }) as any);
+
+    // E1: already assigned to rel-0, also ranked rel-1 (rank 2)
+    const e1Doc = makeDoc(`${FILL_SELECTOR_ID}-e1`, {
+      userID: 'e1-fill',
+      relationshipSelectorID: FILL_SELECTOR_ID,
+      relationshipRankings: [rel0, rel1], // rel0=rank1, rel1=rank2
+      assignedRelationships: [
+        { relationshipID: rel0, assignedUserIDs: ['e1-fill', 'e2-fill'] }
+      ]
+    });
+
+    // N1: new participant, ranks rel-1 first
+    const n1Doc = makeDoc(`${FILL_SELECTOR_ID}-n1`, {
+      userID: 'n1-fill',
+      relationshipSelectorID: FILL_SELECTOR_ID,
+      relationshipRankings: [rel1, rel0],
+      assignedRelationships: []
+    });
+
+    assignmentDocs = [e1Doc, n1Doc];
+
+    const res = await POST(makeEvent({ gameID: GAME_ID, relationshipSelectorID: FILL_SELECTOR_ID }));
+    const body = await res.json();
+    expect(body.success).toBe(true);
+
+    // N1 gets rel-1. fillTuples should add E1 (ranked rel-1 at rank-2, not assigned to it).
+    const n1Op = batchOps.find((op) => op.path.includes('n1-fill'));
+    expect(n1Op).toBeDefined();
+    const n1Rels = (n1Op!.data as { assignedRelationships: { relationshipID: string; assignedUserIDs: string[] }[] })
+      .assignedRelationships;
+    const n1Rel1 = n1Rels.find((ar) => ar.relationshipID === rel1);
+    expect(n1Rel1).toBeDefined();
+    // Both n1-fill and e1-fill should be in the assignedUserIDs (completed tuple)
+    expect(n1Rel1!.assignedUserIDs).toContain('n1-fill');
+    expect(n1Rel1!.assignedUserIDs).toContain('e1-fill');
+
+    // E1's doc should now include rel-1 as a newly fill-added relationship
+    const e1Op = batchOps.find((op) => op.path.includes('e1-fill'));
+    expect(e1Op).toBeDefined();
+    const e1Rels = (e1Op!.data as { assignedRelationships: { relationshipID: string; assignedUserIDs: string[] }[] })
+      .assignedRelationships;
+    const e1Rel1 = e1Rels.find((ar) => ar.relationshipID === rel1);
+    expect(e1Rel1).toBeDefined();
+    expect(e1Rel1!.assignedUserIDs).toContain('n1-fill');
+    expect(e1Rel1!.assignedUserIDs).toContain('e1-fill');
+
+    // Restore
+    vi.mocked(database.relationships!.doc).mockImplementation((id: string) => ({
+      read: vi.fn(async () => relationships.find((r) => r.id === id))
+    }) as any);
+  });
 });

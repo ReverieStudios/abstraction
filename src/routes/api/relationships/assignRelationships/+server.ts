@@ -122,13 +122,14 @@ export const POST: RequestHandler = async (event) => {
 		}
 
 		// Every participant who submitted rankings gets a doc written (even if unmatched)
-		type WriteOp = { path: string; data: { assignedRelationships: { relationshipID: string; assignedUserIDs: string[] }[] } };
+		type WriteOp = { path: string; data: { assignedRelationships: { relationshipID: string; assignedUserIDs: string[]; shared: boolean }[] } };
 		const ops: WriteOp[] = assignments.map((assignment) => {
 			const userID = assignment.data.userID;
 			const assignedRelIDs = userAssignments.get(userID) ?? [];
 			const assignedRelationships = assignedRelIDs.map((relID) => ({
 				relationshipID: relID,
-				assignedUserIDs: rosters.get(relID) ?? []
+				assignedUserIDs: rosters.get(relID) ?? [],
+				shared: false
 			}));
 			const key = relationshipAssignmentKey(relationshipSelectorID, userID);
 			return { path: `games/${gameID}/relationshipAssignments/${key}`, data: { assignedRelationships } };

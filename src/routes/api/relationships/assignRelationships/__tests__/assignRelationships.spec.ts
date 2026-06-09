@@ -214,8 +214,19 @@ describe('POST /api/relationships/assignRelationships', () => {
     await POST(makeEvent({ gameID: GAME_ID, relationshipSelectorID: SELECTOR_ID }));
 
     for (const op of batchOps) {
-      const data = op.data as { assignedRelationships: { relationshipID: string }[] };
+      const data = op.data as { assignedRelationships: { relationshipID: string; assignedUserIDs: string[]; shared: boolean }[] };
       expect(data.assignedRelationships.length).toBeGreaterThanOrEqual(1);
+    }
+  });
+
+  it('all written assignedRelationship entries have shared: false', async () => {
+    await POST(makeEvent({ gameID: GAME_ID, relationshipSelectorID: SELECTOR_ID }));
+
+    for (const op of batchOps) {
+      const data = op.data as { assignedRelationships: { relationshipID: string; assignedUserIDs: string[]; shared: boolean }[] };
+      for (const ar of data.assignedRelationships) {
+        expect(ar.shared).toBe(false);
+      }
     }
   });
 

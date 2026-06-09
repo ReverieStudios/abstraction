@@ -68,6 +68,7 @@
             <PurchasedRelationshipRow
                 {relationship}
                 assignedUserIDs={rel.assignedUserIDs ?? []}
+                shared={rel.shared ?? false}
                 {getPartnerName}
                 {namesLoading}
             />

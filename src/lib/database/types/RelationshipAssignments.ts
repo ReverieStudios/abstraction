@@ -1,6 +1,7 @@
 interface AssignedRelationship {
     assignedUserIDs: string[];
     relationshipID: string;
+    shared: boolean;
 }
 
 export interface RelationshipAssignment {

@@ -243,14 +243,15 @@
 					const doc = selectorAssignments.find((a) => a.data.userID === uid);
 					if (!doc) return;
 					const existing = doc.data.assignedRelationships ?? [];
-					let updated: { relationshipID: string; assignedUserIDs: string[] }[];
+					let updated: { relationshipID: string; assignedUserIDs: string[]; shared: boolean }[];
 					if (uid === oldUserID) {
 						// Remove this relationship from the old user's assignments
 						updated = existing.filter((r) => r.relationshipID !== relationshipID);
 					} else {
 						// Add or update this relationship with the new roster for everyone else
 						const others = existing.filter((r) => r.relationshipID !== relationshipID);
-						updated = [...others, { relationshipID, assignedUserIDs: newRoster }];
+						const existingShared = existing.find((r) => r.relationshipID === relationshipID)?.shared ?? false;
+						updated = [...others, { relationshipID, assignedUserIDs: newRoster, shared: existingShared }];
 					}
 					await doc.update({ assignedRelationships: updated });
 				})

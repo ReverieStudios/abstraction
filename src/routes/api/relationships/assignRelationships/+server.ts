@@ -187,20 +187,17 @@ export const POST: RequestHandler = async (event) => {
 
 		type WriteOp = {
 			path: string;
-			data: { assignedRelationships: { relationshipID: string; assignedUserIDs: string[] }[] };
+			data: { assignedRelationships: { relationshipID: string; assignedUserIDs: string[]; shared: boolean }[] };
 		};
 		const ops: WriteOp[] = [];
 
 		// Write docs for new participants
 		for (const assignment of newAssignments) {
-		// Every participant who submitted rankings gets a doc written (even if unmatched)
-		type WriteOp = { path: string; data: { assignedRelationships: { relationshipID: string; assignedUserIDs: string[]; shared: boolean }[] } };
-		const ops: WriteOp[] = assignments.map((assignment) => {
 			const userID = assignment.data.userID;
 			const assignedRelIDs = newUserAssignments.get(userID) ?? [];
 			const assignedRelationships = assignedRelIDs.map((relID) => ({
 				relationshipID: relID,
-				assignedUserIDs: combinedRosters.get(relID) ?? []
+				assignedUserIDs: combinedRosters.get(relID) ?? [],
 				shared: false
 			}));
 			const key = relationshipAssignmentKey(relationshipSelectorID, userID);
@@ -250,7 +247,8 @@ export const POST: RequestHandler = async (event) => {
 			for (const relID of addedRelIDs) {
 				updatedMap.set(relID, {
 					relationshipID: relID,
-					assignedUserIDs: combinedRosters.get(relID) ?? []
+					assignedUserIDs: combinedRosters.get(relID) ?? [],
+					shared: false
 				});
 			}
 			// Also update assignedUserIDs for any previously assigned rel that changed

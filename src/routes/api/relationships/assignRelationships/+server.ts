@@ -53,87 +53,216 @@ export const POST: RequestHandler = async (event) => {
 		);
 
 		// ── 3. Load all existing assignments for this selector ─────────────────
-		//      We only look at assignments that have rankings but no assignedRelationships yet.
 		const allAssignments: Docs.RelationshipAssignment[] = await database.relationshipAssignments
 			?.withQueries({ field: 'relationshipSelectorID', op: '==', value: relationshipSelectorID })
 			.read() ?? [];
 
-		const assignments = allAssignments.filter(
+		// Split into already-assigned participants and new ones needing matching
+		const alreadyAssigned = allAssignments.filter(
+			(a) =>
+				Array.isArray(a.data.assignedRelationships) &&
+				a.data.assignedRelationships.length > 0
+		);
+		const newAssignments = allAssignments.filter(
 			(a) =>
 				Array.isArray(a.data.relationshipRankings) &&
-				a.data.relationshipRankings.length > 0
+				a.data.relationshipRankings.length > 0 &&
+				(!Array.isArray(a.data.assignedRelationships) || a.data.assignedRelationships.length === 0)
 		);
 
-		if (assignments.length === 0) {
+		// No one has submitted rankings at all
+		const anyWithRankings = allAssignments.some(
+			(a) => Array.isArray(a.data.relationshipRankings) && a.data.relationshipRankings.length > 0
+		);
+		if (!anyWithRankings) {
 			return json({ success: false, message: 'No participants have submitted rankings yet' });
 		}
 
-		// ── 4. Build and run the matcher ────────────────────────────────────────
+		// Everyone who submitted rankings is already assigned
+		if (newAssignments.length === 0) {
+			return json({ success: true, assignments: 0, message: 'All participants are already assigned' });
+		}
+
+		// ── 4. Build existing roster map from already-assigned docs ────────────
+		// existingRostersByRelID: relID -> set of userIDs already in that relationship
+		const existingRostersByRelID = new Map<string, string[]>();
+		for (const assignment of alreadyAssigned) {
+			for (const ar of assignment.data.assignedRelationships ?? []) {
+				if (!existingRostersByRelID.has(ar.relationshipID)) {
+					existingRostersByRelID.set(ar.relationshipID, []);
+				}
+				const roster = existingRostersByRelID.get(ar.relationshipID)!;
+				if (!roster.includes(assignment.data.userID)) {
+					roster.push(assignment.data.userID);
+				}
+			}
+		}
+
+		// ── 5. Build existingCandidates for fillTuples ─────────────────────────
+		// For each already-assigned user, collect posts they ranked but were NOT assigned to.
+		const existingCandidates: { applicant: string; post: string; rank: number }[] = [];
+		for (const assignment of alreadyAssigned) {
+			const assignedRelIDs = new Set(
+				(assignment.data.assignedRelationships ?? []).map((ar) => ar.relationshipID)
+			);
+			const rankings: string[] = assignment.data.relationshipRankings ?? [];
+			rankings.forEach((relID, index) => {
+				if (relationshipIDs.includes(relID) && !assignedRelIDs.has(relID)) {
+					existingCandidates.push({ applicant: assignment.data.userID, post: relID, rank: index + 1 });
+				}
+			});
+		}
+
+		// ── 6. Build and run the matcher (new participants only) ────────────────
 		const matcher = new CapacitatedRankMaximalMatcher();
 
-		// Shuffle applicants and relationships before adding to eliminate any
-		// ordering bias in the algorithm (e.g. first-listed users always winning).
-		const shuffledAssignments = [...assignments].sort(() => Math.random() - 0.5);
+		const shuffledNewAssignments = [...newAssignments].sort(() => Math.random() - 0.5);
 		const shuffledRelationships = [...relationships].sort(() => Math.random() - 0.5);
 
-		// Add applicant nodes (one per participant)
-		for (const assignment of shuffledAssignments) {
-			const userID = assignment.data.userID;
-			matcher.addNode(userID, false, relationshipsPerCharacter);
+		// Add applicant nodes for new participants only
+		for (const assignment of shuffledNewAssignments) {
+			matcher.addNode(assignment.data.userID, false, relationshipsPerCharacter);
 		}
 
-		// Add post nodes (one per relationship) and edges
+		// Add post nodes with capacity reduced by existing assignments
 		const tupleSizes = new Map<string, number>();
+		const addedPostIDs = new Set<string>();
 		for (const rel of shuffledRelationships) {
-			const capacity = rel.data.capacity > 0 ? rel.data.capacity : assignments.length;
+			const existingCount = existingRostersByRelID.get(rel.id)?.length ?? 0;
+			const baseCapacity = rel.data.capacity > 0 ? rel.data.capacity : allAssignments.length;
+			const remainingCapacity = Math.max(0, baseCapacity - existingCount);
 			const size = rel.data.size ?? 2;
-			matcher.addNode(rel.id, true, capacity);
 			tupleSizes.set(rel.id, size);
+			// Only add as a post node if slots remain — but still track tuple size
+			if (remainingCapacity > 0) {
+				matcher.addNode(rel.id, true, remainingCapacity);
+				addedPostIDs.add(rel.id);
+			}
 		}
 
-		// Add ranked edges: rank 1 = most preferred
-		for (const assignment of shuffledAssignments) {
+		// Add ranked edges from new participants (only to posts that have remaining slots)
+		for (const assignment of shuffledNewAssignments) {
 			const userID = assignment.data.userID;
 			const rankings: string[] = assignment.data.relationshipRankings ?? [];
 			rankings.forEach((relID, index) => {
-				if (relationshipIDs.includes(relID)) {
+				if (addedPostIDs.has(relID)) {
 					matcher.addEdge(userID, relID, index + 1);
 				}
 			});
 		}
 
-		// Determine max rank from rankings length
-		const maxRank = Math.max(...shuffledAssignments.map((a) => a.data.relationshipRankings?.length ?? 0), 1);
+		const maxRank = Math.max(...shuffledNewAssignments.map((a) => a.data.relationshipRankings?.length ?? 0), 1);
 
 		const matching = matcher.solve(maxRank);
-		const rosters = matcher.fillTuples(matching, tupleSizes);
+		// newRosters: Map<relID, newRoundUserIDs[]> — new-round additions only
+		const newRosters = matcher.fillTuples(matching, tupleSizes, existingCandidates);
 
-		// ── 5. Write results to Firestore via batched writes ────────────────────
-		//      rosters is the authoritative source: Map<relID, userID[]>.
-		//      Invert it to get per-user assignments, then write one doc per user.
+		// ── 7. Write results to Firestore via batched writes ────────────────────
+		// Build combined rosters: existing members + new-round additions per relID
+		const combinedRosters = new Map<string, string[]>();
+		for (const rel of relationships) {
+			const existing = existingRostersByRelID.get(rel.id) ?? [];
+			const added = newRosters.get(rel.id) ?? [];
+			combinedRosters.set(rel.id, [...existing, ...added]);
+		}
 
-		// Build per-user assignment list from rosters (includes fillTuples additions)
-		const userAssignments = new Map<string, string[]>();
-		for (const [relID, userIDs] of rosters) {
+		// Determine which relIDs gained new members this run
+		const changedRelIDs = new Set<string>(
+			[...newRosters.entries()]
+				.filter(([, users]) => users.length > 0)
+				.map(([relID]) => relID)
+		);
+
+		// Build per-user assignment list for new participants from combined rosters
+		const newUserAssignments = new Map<string, string[]>();
+		for (const [relID, userIDs] of newRosters) {
 			for (const userID of userIDs) {
-				if (!userAssignments.has(userID)) userAssignments.set(userID, []);
-				userAssignments.get(userID)!.push(relID);
+				// Only track new-round users (not existing fill candidates pulled in)
+				if (newAssignments.some((a) => a.data.userID === userID)) {
+					if (!newUserAssignments.has(userID)) newUserAssignments.set(userID, []);
+					newUserAssignments.get(userID)!.push(relID);
+				}
 			}
 		}
 
-		// Every participant who submitted rankings gets a doc written (even if unmatched)
-		type WriteOp = { path: string; data: { assignedRelationships: { relationshipID: string; assignedUserIDs: string[]; shared: boolean }[] } };
-		const ops: WriteOp[] = assignments.map((assignment) => {
+		type WriteOp = {
+			path: string;
+			data: { assignedRelationships: { relationshipID: string; assignedUserIDs: string[]; shared: boolean }[] };
+		};
+		const ops: WriteOp[] = [];
+
+		// Write docs for new participants
+		for (const assignment of newAssignments) {
 			const userID = assignment.data.userID;
-			const assignedRelIDs = userAssignments.get(userID) ?? [];
+			const assignedRelIDs = newUserAssignments.get(userID) ?? [];
 			const assignedRelationships = assignedRelIDs.map((relID) => ({
 				relationshipID: relID,
-				assignedUserIDs: rosters.get(relID) ?? [],
+				assignedUserIDs: combinedRosters.get(relID) ?? [],
 				shared: false
 			}));
 			const key = relationshipAssignmentKey(relationshipSelectorID, userID);
-			return { path: `games/${gameID}/relationshipAssignments/${key}`, data: { assignedRelationships } };
-		});
+			ops.push({ path: `games/${gameID}/relationshipAssignments/${key}`, data: { assignedRelationships } });
+		}
+
+		// Patch existing participants' docs for any relationship that gained new members
+		for (const assignment of alreadyAssigned) {
+			const touchedRels = (assignment.data.assignedRelationships ?? []).filter((ar) =>
+				changedRelIDs.has(ar.relationshipID)
+			);
+			if (touchedRels.length === 0) continue;
+
+			// Rebuild assignedRelationships: update assignedUserIDs for changed rels, keep others intact
+			const updatedAssignedRelationships = (assignment.data.assignedRelationships ?? []).map((ar) => {
+				if (changedRelIDs.has(ar.relationshipID)) {
+					return { ...ar, assignedUserIDs: combinedRosters.get(ar.relationshipID) ?? ar.assignedUserIDs };
+				}
+				return ar;
+			});
+			const key = relationshipAssignmentKey(relationshipSelectorID, assignment.data.userID);
+			ops.push({
+				path: `games/${gameID}/relationshipAssignments/${key}`,
+				data: { assignedRelationships: updatedAssignedRelationships }
+			});
+		}
+
+		// Also patch any existing user who was pulled in as a fill candidate this run
+		// (they appear in newRosters but are not in newAssignments)
+		const newParticipantIDs = new Set(newAssignments.map((a) => a.data.userID));
+		const fillFromExisting = new Map<string, string[]>(); // userID -> relIDs they were fill-added to
+		for (const [relID, userIDs] of newRosters) {
+			for (const userID of userIDs) {
+				if (!newParticipantIDs.has(userID)) {
+					// This is an existing user pulled in as a fill candidate
+					if (!fillFromExisting.has(userID)) fillFromExisting.set(userID, []);
+					fillFromExisting.get(userID)!.push(relID);
+				}
+			}
+		}
+		for (const [userID, addedRelIDs] of fillFromExisting) {
+			const existingDoc = alreadyAssigned.find((a) => a.data.userID === userID);
+			if (!existingDoc) continue; // shouldn't happen
+			const existingRels = existingDoc.data.assignedRelationships ?? [];
+			// Merge: update changed rels + append newly fill-added rels
+			const updatedMap = new Map(existingRels.map((ar) => [ar.relationshipID, ar]));
+			for (const relID of addedRelIDs) {
+				updatedMap.set(relID, {
+					relationshipID: relID,
+					assignedUserIDs: combinedRosters.get(relID) ?? [],
+					shared: false
+				});
+			}
+			// Also update assignedUserIDs for any previously assigned rel that changed
+			for (const [relID, ar] of updatedMap) {
+				if (changedRelIDs.has(relID)) {
+					updatedMap.set(relID, { ...ar, assignedUserIDs: combinedRosters.get(relID) ?? ar.assignedUserIDs });
+				}
+			}
+			const key = relationshipAssignmentKey(relationshipSelectorID, userID);
+			ops.push({
+				path: `games/${gameID}/relationshipAssignments/${key}`,
+				data: { assignedRelationships: [...updatedMap.values()] }
+			});
+		}
 
 		// Commit in chunks of 500 (Firestore batch limit)
 		const BATCH_SIZE = 500;
@@ -146,7 +275,7 @@ export const POST: RequestHandler = async (event) => {
 			await batch.commit();
 		}
 
-		return json({ success: true, assignments: ops.length });
+		return json({ success: true, assignments: newAssignments.length });
 	} catch (err: any) {
 		console.error('assignRelationships error:', err);
 		return json({ success: false, message: (err as Error).message ?? String(err) });

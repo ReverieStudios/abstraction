@@ -195,36 +195,61 @@ export class CapacitatedRankMaximalMatcher {
    * of that post's tuple size by greedily adding the unmatched applicants who
    * ranked the post highest.
    *
-   * Returns a new Map<postId, NodeId[]> of the complete (possibly over-capacity)
-   * rosters per post. Posts that already divide evenly are included unchanged.
+   * Returns a new Map<postId, NodeId[]> of only the new-round members
+   * (matched + filled). The caller is responsible for merging with any
+   * pre-existing rosters from a prior run.
    *
    * @param matching - the Set<Match> returned by solve()
    * @param tupleSizes - per-post tuple size (defaults to 2 for any post not listed)
+   * @param existingCandidates - optional list of already-assigned applicants who
+   *   ranked a post but were NOT assigned to it in the prior run. These are drawn
+   *   from as additional fill candidates when new-round matched applicants don't
+   *   divide evenly into tuples. Pre-existing rosters are guaranteed to already be
+   *   balanced (length % tupleSize === 0), so only the new-round match count
+   *   determines whether filling is needed.
    */
-  fillTuples(matching: Set<Match>, tupleSizes: Map<NodeId, number> = new Map()): Map<NodeId, NodeId[]> {
+  fillTuples(
+    matching: Set<Match>,
+    tupleSizes: Map<NodeId, number> = new Map(),
+    existingCandidates: { applicant: NodeId; post: NodeId; rank: number }[] = []
+  ): Map<NodeId, NodeId[]> {
     // Build initial rosters from the matching
     const rosters = new Map<NodeId, NodeId[]>();
     for (const post of this.posts) rosters.set(post, []);
     for (const { applicant, post } of matching) rosters.get(post)!.push(applicant);
 
-    // Build a lookup: post -> sorted list of (applicant, rank) for unmatched applicants
-    // adj stores edges on both sides, so we read from each post's adjacency list
+    // Index existing candidates by post for fast lookup
+    const existingCandidatesByPost = new Map<NodeId, { applicant: NodeId; rank: number }[]>();
+    for (const { applicant, post, rank } of existingCandidates) {
+      if (!existingCandidatesByPost.has(post)) existingCandidatesByPost.set(post, []);
+      existingCandidatesByPost.get(post)!.push({ applicant, rank });
+    }
+
     for (const post of this.posts) {
       const tupleSize = tupleSizes.get(post) ?? 2;
       const roster = rosters.get(post)!;
+      // Existing rosters are guaranteed balanced (length % tupleSize === 0),
+      // so only the new-round matched count determines whether filling is needed.
       const remainder = roster.length % tupleSize;
       if (remainder === 0) continue;
 
       const needed = tupleSize - remainder;
 
-      // Collect unmatched applicants who have an edge to this post, sorted by rank (ascending)
+      // Pool A: new-round unmatched applicants with an edge to this post
       const candidates: { applicant: NodeId; rank: number }[] = [];
       for (const edge of this.originalAdj.get(post) ?? []) {
         const applicant = edge.to;
         if (!this.applicants.has(applicant)) continue; // skip post-side neighbours
-        if (roster.includes(applicant)) continue;      // already assigned
+        if (roster.includes(applicant)) continue;      // already in new-round roster
         candidates.push({ applicant, rank: edge.rank });
       }
+
+      // Pool B: existing-round applicants who ranked this post but weren't assigned to it
+      for (const { applicant, rank } of existingCandidatesByPost.get(post) ?? []) {
+        if (roster.includes(applicant)) continue; // already in new-round roster
+        candidates.push({ applicant, rank });
+      }
+
       candidates.sort((a, b) => a.rank - b.rank);
 
       for (let i = 0; i < needed && i < candidates.length; i++) {

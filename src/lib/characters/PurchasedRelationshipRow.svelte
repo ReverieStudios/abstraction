@@ -60,6 +60,8 @@
 					{/if}
 				</div>
 			</div>
+		{:else}
+			<div class="mt1 italic">Assignments pending, check back soon!</div>
 		{/if}
 	</div>
 {/if}

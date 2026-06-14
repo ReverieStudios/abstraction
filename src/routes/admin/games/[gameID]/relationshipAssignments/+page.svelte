@@ -100,6 +100,17 @@
 		).length;
 	};
 
+	// ── Count participants with rankings but no assignment yet ─────────────────
+	const countUnassigned = (selectorID: string): number => {
+		const assignments = $assignmentsBySelectorId[selectorID] ?? [];
+		return assignments.filter(
+			(a) =>
+				Array.isArray(a.data.relationshipRankings) &&
+				a.data.relationshipRankings.length > 0 &&
+				(!Array.isArray(a.data.assignedRelationships) || a.data.assignedRelationships.length === 0)
+		).length;
+	};
+
 	// ── Run the matching algorithm ─────────────────────────────────────────────
 	const runAlgorithm = async (selectorID: string) => {
 		running = { ...running, [selectorID]: true };
@@ -232,14 +243,15 @@
 					const doc = selectorAssignments.find((a) => a.data.userID === uid);
 					if (!doc) return;
 					const existing = doc.data.assignedRelationships ?? [];
-					let updated: { relationshipID: string; assignedUserIDs: string[] }[];
+					let updated: { relationshipID: string; assignedUserIDs: string[]; shared: boolean }[];
 					if (uid === oldUserID) {
 						// Remove this relationship from the old user's assignments
 						updated = existing.filter((r) => r.relationshipID !== relationshipID);
 					} else {
 						// Add or update this relationship with the new roster for everyone else
 						const others = existing.filter((r) => r.relationshipID !== relationshipID);
-						updated = [...others, { relationshipID, assignedUserIDs: newRoster }];
+						const existingShared = existing.find((r) => r.relationshipID === relationshipID)?.shared ?? false;
+						updated = [...others, { relationshipID, assignedUserIDs: newRoster, shared: existingShared }];
 					}
 					await doc.update({ assignedRelationships: updated });
 				})
@@ -351,6 +363,7 @@
 			{#each $relationshipSelectors as selector (selector.id)}
 				{@const selectorHasAssignments = hasAssignments(selector.id)}
 				{@const rankingCount = countRankings(selector.id)}
+				{@const unassignedCount = countUnassigned(selector.id)}
 				{@const isRunning = running[selector.id]}
 				{@const isClearing = clearing[selector.id]}
 				{@const isExpanded = $expanded[selector.id] ?? false}
@@ -377,34 +390,33 @@
 
 						<div class="flex g1 items-center">
 							{#if selectorHasAssignments}
-							{@const isSelectorSharedNow = isSelectorShared(selector.id)}
-							<span class="chip bg-success text-on-success">
-								<Icon>check_circle</Icon> Assigned
-							</span>
-							{#if sharing[selector.id]}
-								<Spinner />
-							{:else}
-								<button
-									class="share-toggle"
-									class:active={isSelectorSharedNow}
-									title={isSelectorSharedNow ? 'Unshare with participants' : 'Share with participants'}
-									on:click={() => shareRelationships(selector.id, !isSelectorSharedNow)}
-								>
-									<Icon>{isSelectorSharedNow ? 'visibility' : 'visibility_off'}</Icon>
-									{isSelectorSharedNow ? 'Shared' : 'Share with participants'}
-								</button>
+								{@const isSelectorSharedNow = isSelectorShared(selector.id)}
+								<span class="chip bg-success text-on-success">
+									<Icon>check_circle</Icon> Assigned
+								</span>
+								{#if sharing[selector.id]}
+									<Spinner />
+								{:else}
+									<button
+										class="share-toggle"
+										class:active={isSelectorSharedNow}
+										title={isSelectorSharedNow ? 'Unshare with participants' : 'Share with participants'}
+										on:click={() => shareRelationships(selector.id, !isSelectorSharedNow)}
+									>
+										<Icon>{isSelectorSharedNow ? 'visibility' : 'visibility_off'}</Icon>
+										{isSelectorSharedNow ? 'Shared' : 'Share with participants'}
+									</button>
+								{/if}
+								<ConfirmButton on:confirm={() => clearAssignments(selector.id)} />
 							{/if}
-							<ConfirmButton on:confirm={() => clearAssignments(selector.id)} />
-							{:else}
+							{#if unassignedCount > 0}
 								{#if isRunning}
 									<Spinner />
 									<span class="muted">Running…</span>
 								{:else}
-									<Button
-										disabled={rankingCount === 0}
-										on:click={() => runAlgorithm(selector.id)}
-									>
-										<Icon>auto_awesome</Icon> Run Algorithm
+									<Button on:click={() => runAlgorithm(selector.id)}>
+										<Icon>auto_awesome</Icon>
+										{selectorHasAssignments ? 'Run for New Participants' : 'Run Algorithm'}
 									</Button>
 								{/if}
 							{/if}

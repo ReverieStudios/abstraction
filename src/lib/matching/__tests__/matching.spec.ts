@@ -437,4 +437,114 @@ describe('CapacitatedRankMaximalMatcher', () => {
       expect(result.size).toBe(0);
     });
   });
+
+  describe('fillTuples with existingCandidates', () => {
+    it('backward compat: empty existingCandidates behaves identically to omitting the argument', () => {
+      const m = new CapacitatedRankMaximalMatcher();
+      m.addNode('A1', false, 1); m.addNode('A2', false, 1);
+      m.addNode('P1', true, 1);  m.addNode('P2', true, 1);
+      m.addEdge('A1', 'P1', 1);
+      m.addEdge('A2', 'P2', 1);
+      m.addEdge('A2', 'P1', 2); // A2 is fill candidate for P1
+
+      const matching = m.solve(2);
+
+      const rostersWithout = m.fillTuples(matching, new Map([['P1', 2], ['P2', 2]]));
+      const rostersWith    = m.fillTuples(matching, new Map([['P1', 2], ['P2', 2]]), []);
+
+      expect([...rostersWithout.get('P1')!].sort()).toEqual([...rostersWith.get('P1')!].sort());
+      expect([...rostersWithout.get('P2')!].sort()).toEqual([...rostersWith.get('P2')!].sort());
+    });
+
+    it('fills using an existing candidate when the new-round roster is unbalanced', () => {
+      // Second run: A_new is the only new applicant and gets matched to P1.
+      // P1 has tupleSize=2 → needs 1 fill. No new-round unmatched applicants exist.
+      // A_old ranked P1 at rank-2 in the prior run but was not assigned to it.
+      // fillTuples should draw A_old from existingCandidates to complete the tuple.
+      const m = new CapacitatedRankMaximalMatcher();
+      m.addNode('A_new', false, 1);
+      m.addNode('P1', true, 1); // 1 remaining slot after prior run
+      m.addEdge('A_new', 'P1', 1);
+
+      const matching = m.solve(1);
+      expect(hasMatch(matching, 'A_new', 'P1')).toBe(true);
+
+      const existingCandidates = [{ applicant: 'A_old', post: 'P1', rank: 2 }];
+      const rosters = m.fillTuples(matching, new Map([['P1', 2]]), existingCandidates);
+
+      expect(rosters.get('P1')).toContain('A_new');
+      expect(rosters.get('P1')).toContain('A_old');
+      expect(rosters.get('P1')!.length).toBe(2);
+    });
+
+    it('prefers a lower-ranked (higher preference) candidate regardless of pool origin', () => {
+      // P1 has 1 new matched applicant (A_new). Two fill candidates exist:
+      //   - A_unmatched (new-round, rank-3 to P1 via originalAdj)
+      //   - A_old (existing candidate, rank-1 to P1)
+      // A_old has lower rank number → should be chosen.
+      const m = new CapacitatedRankMaximalMatcher();
+      m.addNode('A_new', false, 1); m.addNode('A_unmatched', false, 1);
+      m.addNode('P1', true, 1);     m.addNode('P2', true, 1);
+      m.addEdge('A_new',       'P1', 1);
+      m.addEdge('A_unmatched', 'P2', 1);
+      m.addEdge('A_unmatched', 'P1', 3); // rank-3 edge — worse than A_old's rank-1
+
+      const matching = m.solve(3);
+      // A_new→P1, A_unmatched→P2
+      expect(matching.size).toBe(2);
+
+      const existingCandidates = [{ applicant: 'A_old', post: 'P1', rank: 1 }];
+      const rosters = m.fillTuples(matching, new Map([['P1', 2]]), existingCandidates);
+
+      const p1Roster = rosters.get('P1')!;
+      expect(p1Roster.length).toBe(2);
+      // A_old (rank-1) should win over A_unmatched (rank-3)
+      expect(p1Roster).toContain('A_new');
+      expect(p1Roster).toContain('A_old');
+      expect(p1Roster).not.toContain('A_unmatched');
+    });
+
+    it('excludes an existing candidate already present in the new-round roster', () => {
+      // A_old was re-matched in the new run and appears in the roster already.
+      // It should not be added a second time from existingCandidates.
+      const m = new CapacitatedRankMaximalMatcher();
+      m.addNode('A_old', false, 1); m.addNode('A_new', false, 1);
+      m.addNode('P1', true, 2);
+      m.addEdge('A_old', 'P1', 1);
+      m.addEdge('A_new', 'P1', 1);
+
+      const matching = m.solve(1);
+      // Both get matched (P1 has capacity 2)
+      expect(matching.size).toBe(2);
+
+      // A_old is also passed as an existing candidate — should be ignored
+      const existingCandidates = [{ applicant: 'A_old', post: 'P1', rank: 1 }];
+      const rosters = m.fillTuples(matching, new Map([['P1', 2]]), existingCandidates);
+
+      // Roster already divides evenly (2 % 2 === 0), no fill needed
+      expect(rosters.get('P1')!.length).toBe(2);
+      // A_old appears exactly once
+      expect(rosters.get('P1')!.filter((a) => a === 'A_old').length).toBe(1);
+    });
+
+    it('does not fill when new-round matched roster already divides evenly', () => {
+      // P1 gets 2 new-round matched applicants with tupleSize=2 — no fill needed
+      // even though an existingCandidate exists.
+      const m = new CapacitatedRankMaximalMatcher();
+      m.addNode('A1', false, 1); m.addNode('A2', false, 1);
+      m.addNode('P1', true, 2);
+      m.addEdge('A1', 'P1', 1);
+      m.addEdge('A2', 'P1', 1);
+
+      const matching = m.solve(1);
+      expect(matching.size).toBe(2);
+
+      const existingCandidates = [{ applicant: 'A_old', post: 'P1', rank: 1 }];
+      const rosters = m.fillTuples(matching, new Map([['P1', 2]]), existingCandidates);
+
+      // 2 % 2 === 0 → no fill, A_old not added
+      expect(rosters.get('P1')!.length).toBe(2);
+      expect(rosters.get('P1')!).not.toContain('A_old');
+    });
+  });
 });

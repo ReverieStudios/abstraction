@@ -54,7 +54,7 @@
 </script>
 
 <div>
-    {#if !assignment || !assignment.data?.assignedRelationships || assignment.data?.assignedRelationships.length === 0}
+    {#if !assignment || !assignment.data?.assignedRelationships || assignment.data?.assignedRelationships.length === 0 || assignment.data.assignedRelationships.some((r) => !r.shared)}
         <!-- No assigned relationships: show chooser but disable sorting/moving -->
         <div class="hover-bg-primary-light p2 print-none">
             <RelationshipChooser relationshipSelectorID={selector.id} allowSort={false} enableHelp={enableHelp} {existingRanks}/>

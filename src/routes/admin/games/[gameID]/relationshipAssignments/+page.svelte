@@ -390,31 +390,26 @@
 
 						<div class="flex g1 items-center">
 							{#if selectorHasAssignments}
+								{@const isSelectorSharedNow = isSelectorShared(selector.id)}
 								<span class="chip bg-success text-on-success">
 									<Icon>check_circle</Icon> Assigned
 								</span>
+								{#if sharing[selector.id]}
+									<Spinner />
+								{:else}
+									<button
+										class="share-toggle"
+										class:active={isSelectorSharedNow}
+										title={isSelectorSharedNow ? 'Unshare with participants' : 'Share with participants'}
+										on:click={() => shareRelationships(selector.id, !isSelectorSharedNow)}
+									>
+										<Icon>{isSelectorSharedNow ? 'visibility' : 'visibility_off'}</Icon>
+										{isSelectorSharedNow ? 'Shared' : 'Share with participants'}
+									</button>
+								{/if}
 								<ConfirmButton on:confirm={() => clearAssignments(selector.id)} />
 							{/if}
 							{#if unassignedCount > 0}
-							{@const isSelectorSharedNow = isSelectorShared(selector.id)}
-							<span class="chip bg-success text-on-success">
-								<Icon>check_circle</Icon> Assigned
-							</span>
-							{#if sharing[selector.id]}
-								<Spinner />
-							{:else}
-								<button
-									class="share-toggle"
-									class:active={isSelectorSharedNow}
-									title={isSelectorSharedNow ? 'Unshare with participants' : 'Share with participants'}
-									on:click={() => shareRelationships(selector.id, !isSelectorSharedNow)}
-								>
-									<Icon>{isSelectorSharedNow ? 'visibility' : 'visibility_off'}</Icon>
-									{isSelectorSharedNow ? 'Shared' : 'Share with participants'}
-								</button>
-							{/if}
-							<ConfirmButton on:confirm={() => clearAssignments(selector.id)} />
-							{:else}
 								{#if isRunning}
 									<Spinner />
 									<span class="muted">Running…</span>

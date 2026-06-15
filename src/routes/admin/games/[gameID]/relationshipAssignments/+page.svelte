@@ -25,6 +25,7 @@
 	const relationships = database.relationships;
 	const relationshipAssignments = database.relationshipAssignments;
 	const users = database.users;
+	const characters = database.characters;
 
 	// ── Derived lookups ────────────────────────────────────────────────────────
 	const relationshipsById: Readable<Record<string, Docs.Relationship>> = derived(
@@ -35,6 +36,11 @@
 	const usersById: Readable<Record<string, Docs.User>> = derived(
 		users ?? readable([]),
 		($users) => keyBy($users ?? [], 'id')
+	);
+
+	const charactersById: Readable<Record<string, Docs.Character>> = derived(
+		characters ?? readable([]),
+		($chars) => keyBy($chars ?? [], 'id')
 	);
 
 	// Group assignments by selectorID for quick lookup
@@ -56,12 +62,13 @@
 	let sharing: Record<string, boolean> = {};
 
 	// ── Manual edit state ──────────────────────────────────────────────────────
-	// Editing means: swap a specific user out of a specific relationship
+	// Editing means: swap a specific user out of a specific relationship.
+	// oldUserID === null means "add" mode (slot is empty due to deletion).
 	interface EditingSlot {
 		selectorID: string;
 		relationshipID: string;
-		oldUserID: string;       // the user being replaced
-		currentRoster: string[]; // full roster for this relationship
+		oldUserID: string | null; // the user being replaced, or null in add mode
+		currentRoster: string[];  // current members of this tuple
 	}
 	let editingSlot: EditingSlot | null = null;
 	let replaceWithUserID: string = '';
@@ -74,6 +81,12 @@
 	// ── User email helpers ─────────────────────────────────────────────────────
 	const getUserEmail = (userID: string): string => {
 		return $usersById[userID]?.data?.email ?? userID;
+	};
+
+	const getCharacterLabel = (userID: string): string => {
+		const email = getUserEmail(userID);
+		const charName = $charactersById[userID]?.data?.name;
+		return charName ? `${email} (${charName})` : email;
 	};
 
 	const getUserName = (userID: string): string => {
@@ -212,58 +225,85 @@
 		replaceWithUserID = '';
 	};
 
+	// ── Manual override: open add modal (empty slot due to deletion) ──────────
+	const openAdd = (selectorID: string, relationshipID: string, roster: string[]) => {
+		editingSlot = { selectorID, relationshipID, oldUserID: null, currentRoster: roster };
+		replaceWithUserID = '';
+	};
+
 	// ── Manual override: save ─────────────────────────────────────────────────
 	const saveEdit = async () => {
 		if (!editingSlot || !replaceWithUserID) return;
 		const { selectorID, relationshipID, oldUserID, currentRoster } = editingSlot;
+		const isAddMode = oldUserID === null;
 
-		// Guard: new user must not already be in the roster
-		if (currentRoster.filter((id) => id !== oldUserID).includes(replaceWithUserID)) {
-			sendNotification({ text: 'That user is already in this relationship' });
-			return;
+		if (!isAddMode) {
+			// Guard: new user must not already be in the roster
+			if (currentRoster.filter((id) => id !== oldUserID).includes(replaceWithUserID)) {
+				sendNotification({ text: 'That user is already in this relationship' });
+				return;
+			}
+			// No-op: same user selected — just close
+			if (replaceWithUserID === oldUserID) {
+				editingSlot = null;
+				return;
+			}
 		}
 
-		// No-op: same user selected — just close
-		if (replaceWithUserID === oldUserID) {
-			editingSlot = null;
-			return;
-		}
+		// Build new roster: add or swap
+		const newRoster = isAddMode
+			? [...currentRoster, replaceWithUserID]
+			: currentRoster.map((id) => (id === oldUserID ? replaceWithUserID : id));
 
-		// New roster: swap old user out, new user in
-		const newRoster = currentRoster.map((id) => (id === oldUserID ? replaceWithUserID : id));
-
-		// All users whose assignment docs need updating:
-		// everyone in the new roster + the old user (to remove the relationship)
-		const allAffected = new Set([...newRoster, oldUserID]);
+		// All users whose assignment docs need updating
+		const allAffected = isAddMode
+			? new Set(newRoster)
+			: new Set([...newRoster, oldUserID as string]);
 		const selectorAssignments = $assignmentsBySelectorId[selectorID] ?? [];
 
 		try {
 			await Promise.all(
 				[...allAffected].map(async (uid) => {
-					const doc = selectorAssignments.find((a) => a.data.userID === uid);
-					if (!doc) return;
-					const existing = doc.data.assignedRelationships ?? [];
-					let updated: { relationshipID: string; assignedUserIDs: string[]; shared: boolean }[];
-					if (uid === oldUserID) {
+					const existingDoc = selectorAssignments.find((a) => a.data.userID === uid);
+					if (!isAddMode && uid === (oldUserID as string)) {
 						// Remove this relationship from the old user's assignments
-						updated = existing.filter((r) => r.relationshipID !== relationshipID);
-					} else {
-						// Add or update this relationship with the new roster for everyone else
-						const others = existing.filter((r) => r.relationshipID !== relationshipID);
-						const existingShared = existing.find((r) => r.relationshipID === relationshipID)?.shared ?? false;
-						updated = [...others, { relationshipID, assignedUserIDs: newRoster, shared: existingShared }];
+						if (!existingDoc) return;
+						const updated = (existingDoc.data.assignedRelationships ?? []).filter(
+							(r) => r.relationshipID !== relationshipID
+						);
+						await existingDoc.update({ assignedRelationships: updated });
+					} else if (existingDoc) {
+						// Merge the updated relationship into the existing doc
+						const others = (existingDoc.data.assignedRelationships ?? []).filter(
+							(r) => r.relationshipID !== relationshipID
+						);
+						const existingShared =
+							(existingDoc.data.assignedRelationships ?? []).find(
+								(r) => r.relationshipID === relationshipID
+							)?.shared ?? false;
+						await existingDoc.update({
+							assignedRelationships: [
+								...others,
+								{ relationshipID, assignedUserIDs: newRoster, shared: existingShared }
+							]
+						});
+					} else if (isAddMode && uid === replaceWithUserID) {
+						// User has no assignment doc (e.g. deleted and re-created character).
+						// Create one via update() — setDoc with merge:true creates if absent.
+						const docID = `${selectorID}-${uid}`;
+						const inheritedShared = isRelationshipShared(selectorID, relationshipID);
+						await database.relationshipAssignments?.doc(docID)?.update({
+							userID: uid,
+							relationshipSelectorID: selectorID,
+							relationshipRankings: [],
+							assignedRelationships: [
+								{ relationshipID, assignedUserIDs: newRoster, shared: inheritedShared }
+							]
+						} as any);
 					}
-					await doc.update({ assignedRelationships: updated });
 				})
 			);
-			// If the new user has no assignment doc yet, we can't create one here easily —
-			// warn the editor if that was the case
-			const newUserHasDoc = selectorAssignments.some((a) => a.data.userID === replaceWithUserID);
-			if (!newUserHasDoc) {
-				sendNotification({ text: 'Warning: new user has no rankings doc — assignment saved to existing members only' });
-			} else {
-				sendNotification({ text: 'Assignment updated' });
-			}
+			sendNotification({ text: isAddMode ? 'Participant added' : 'Assignment updated' });
 			editingSlot = null;
 		} catch (err) {
 			sendNotification({ text: 'Error saving assignment' });
@@ -273,7 +313,8 @@
 	// ── Build per-relationship roster display ─────────────────────────────────
 	interface RosterEntry {
 		relationshipID: string;
-		userIDs: string[];
+		userIDs: string[];    // flat list for count display
+		tuples: string[][];   // actual paired groups from stored assignedUserIDs
 	}
 
 	const rostersBySelectorId: Readable<Record<string, RosterEntry[]>> = derived(
@@ -284,16 +325,30 @@
 				const relIDs: string[] = selector.data.relationshipIDs ?? [];
 				const selectorAssignments = $assignments[selector.id] ?? [];
 				const rosterMap = new Map<string, Set<string>>();
-				for (const relID of relIDs) rosterMap.set(relID, new Set());
+				const tupleSetByRelID = new Map<string, Map<string, string[]>>();
+				for (const relID of relIDs) {
+					rosterMap.set(relID, new Set());
+					tupleSetByRelID.set(relID, new Map());
+				}
 				for (const assignment of selectorAssignments) {
 					for (const ar of assignment.data.assignedRelationships ?? []) {
-						if (!rosterMap.has(ar.relationshipID)) rosterMap.set(ar.relationshipID, new Set());
+						if (!rosterMap.has(ar.relationshipID)) {
+							rosterMap.set(ar.relationshipID, new Set());
+							tupleSetByRelID.set(ar.relationshipID, new Map());
+						}
 						rosterMap.get(ar.relationshipID)!.add(assignment.data.userID);
+						// Deduplicate tuples by their sorted member list
+						const tupleSet = tupleSetByRelID.get(ar.relationshipID)!;
+						const key = [...ar.assignedUserIDs].sort().join('|');
+						if (!tupleSet.has(key)) {
+							tupleSet.set(key, ar.assignedUserIDs);
+						}
 					}
 				}
 				result[selector.id] = relIDs.map((relID) => ({
 					relationshipID: relID,
-					userIDs: Array.from(rosterMap.get(relID) ?? [])
+					userIDs: Array.from(rosterMap.get(relID) ?? []),
+					tuples: [...(tupleSetByRelID.get(relID)?.values() ?? [])]
 				}));
 			}
 			return result;
@@ -314,10 +369,16 @@
 >
 	{#if editingSlot}
 		{@const rel = $relationshipsById[editingSlot.relationshipID]}
-		<p class="mb1">
-			Replacing <strong>{getUserName(editingSlot.oldUserID)}</strong>
-			in <strong>{rel?.data?.name ?? editingSlot.relationshipID}</strong>
-		</p>
+		{#if editingSlot.oldUserID !== null}
+			<p class="mb1">
+				Replacing <strong>{getUserName(editingSlot.oldUserID)}</strong>
+				in <strong>{rel?.data?.name ?? editingSlot.relationshipID}</strong>
+			</p>
+		{:else}
+			<p class="mb1">
+				Adding to <strong>{rel?.data?.name ?? editingSlot.relationshipID}</strong>
+			</p>
+		{/if}
 		<p class="muted h5 mb2">Current roster: {editingSlot.currentRoster.map(getUserName).join(', ')}</p>
 
 		<UserSearch users={usersExcludingRoster} placeholder="Search for replacement…" let:filteredUsers>
@@ -437,7 +498,7 @@
 							{:else}
 								{@const rosters = $rostersBySelectorId[selector.id] ?? []}
 								<div class="rosters">
-									{#each rosters as { relationshipID, userIDs } (relationshipID)}
+									{#each rosters as { relationshipID, userIDs, tuples } (relationshipID)}
 										{@const rel = $relationshipsById[relationshipID]}
 									{@const isRelShared = isRelationshipShared(selector.id, relationshipID)}
 									<div class="roster-section mb3">
@@ -461,29 +522,37 @@
 											{/if}
 									</div>
 
-									{#if userIDs.length === 0}
-										<p class="muted h5">No one assigned yet.</p>
-									{:else}
-										<!-- Group into tuples of `size` -->
-												{@const tupleSize = rel?.data?.size ?? 2}
-												{#each Array.from({ length: Math.ceil(userIDs.length / tupleSize) }, (_, i) => userIDs.slice(i * tupleSize, (i + 1) * tupleSize)) as tuple, tupleIndex}
-													<div class="tuple-row flex items-center g1 mb1 p1 rounded bg-secondary">
-														<span class="muted h5 tuple-label">Group {tupleIndex + 1}</span>
-														<div class="flex flex-wrap g1 flex-auto">
-															{#each tuple as userID}
-															<div class="user-chip bg-surface flex items-center g1">
-																<span>{getUserEmail(userID)}</span>
-																<IconButton
-																	icon="edit"
-																	title="Replace this user"
-																	on:click={() => openEdit(selector.id, relationshipID, userID, userIDs)}
-																/>
-															</div>
-														{/each}
-														</div>
-													</div>
+{#if tuples.length === 0}
+									<p class="muted h5">No one assigned yet.</p>
+								{:else}
+									{@const tupleSize = rel?.data?.size ?? 2}
+									{#each tuples as tuple, tupleIndex}
+										<div class="tuple-row flex items-center g1 mb1 p1 rounded bg-secondary">
+											<span class="muted h5 tuple-label">Group {tupleIndex + 1}</span>
+											<div class="flex flex-wrap g1 flex-auto">
+												{#each tuple as userID}
+												<div class="user-chip bg-surface flex items-center g1">
+												<span>{getCharacterLabel(userID)}</span>
+													<IconButton
+														icon="edit"
+														title="Replace this user"
+														on:click={() => openEdit(selector.id, relationshipID, userID, tuple)}
+													/>
+												</div>
 												{/each}
-											{/if}
+												{#if tuple.length < tupleSize}
+													<button
+														class="add-slot-btn"
+														title="Add a participant to fill this empty slot"
+														on:click={() => openAdd(selector.id, relationshipID, tuple)}
+													>
+														<Icon>person_add</Icon> Add person
+													</button>
+												{/if}
+											</div>
+										</div>
+									{/each}
+								{/if}
 										</div>
 									{/each}
 								</div>
@@ -632,5 +701,24 @@
 	.user-option.selected {
 		background: var(--primary);
 		color: var(--on-primary);
+	}
+
+	.add-slot-btn {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.25rem;
+		background: none;
+		border: 1px dashed var(--surface);
+		border-radius: 8px;
+		padding: 0.2rem 0.5rem;
+		cursor: pointer;
+		color: inherit;
+		font-size: 0.85rem;
+		opacity: 0.7;
+	}
+
+	.add-slot-btn:hover {
+		opacity: 1;
+		background: var(--secondary);
 	}
 </style>

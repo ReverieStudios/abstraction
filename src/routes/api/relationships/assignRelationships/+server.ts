@@ -166,6 +166,24 @@ export const POST: RequestHandler = async (event) => {
 			combinedRosters.set(rel.id, [...existing, ...added]);
 		}
 
+		// Partition each relationship's combined roster into tuples so each user
+		// stores only their specific group, not the entire roster.
+		const tuplesByRelID = new Map<string, string[][]>();
+		for (const [relID, roster] of combinedRosters) {
+			const size = tupleSizes.get(relID) ?? 2;
+			const tuples: string[][] = [];
+			for (let i = 0; i < roster.length; i += size) {
+				tuples.push(roster.slice(i, i + size));
+			}
+			tuplesByRelID.set(relID, tuples);
+		}
+
+		/** Returns the specific tuple within a relationship that contains this user. */
+		const getUserTuple = (relID: string, userID: string): string[] => {
+			const tuples = tuplesByRelID.get(relID) ?? [];
+			return tuples.find((t) => t.includes(userID)) ?? [userID];
+		};
+
 		// Determine which relIDs gained new members this run
 		const changedRelIDs = new Set<string>(
 			[...newRosters.entries()]
@@ -197,7 +215,7 @@ export const POST: RequestHandler = async (event) => {
 			const assignedRelIDs = newUserAssignments.get(userID) ?? [];
 			const assignedRelationships = assignedRelIDs.map((relID) => ({
 				relationshipID: relID,
-				assignedUserIDs: combinedRosters.get(relID) ?? [],
+				assignedUserIDs: getUserTuple(relID, userID),
 				shared: false
 			}));
 			const key = relationshipAssignmentKey(relationshipSelectorID, userID);
@@ -214,7 +232,7 @@ export const POST: RequestHandler = async (event) => {
 			// Rebuild assignedRelationships: update assignedUserIDs for changed rels, keep others intact
 			const updatedAssignedRelationships = (assignment.data.assignedRelationships ?? []).map((ar) => {
 				if (changedRelIDs.has(ar.relationshipID)) {
-					return { ...ar, assignedUserIDs: combinedRosters.get(ar.relationshipID) ?? ar.assignedUserIDs };
+					return { ...ar, assignedUserIDs: getUserTuple(ar.relationshipID, assignment.data.userID) };
 				}
 				return ar;
 			});
@@ -247,14 +265,14 @@ export const POST: RequestHandler = async (event) => {
 			for (const relID of addedRelIDs) {
 				updatedMap.set(relID, {
 					relationshipID: relID,
-					assignedUserIDs: combinedRosters.get(relID) ?? [],
+					assignedUserIDs: getUserTuple(relID, userID),
 					shared: false
 				});
 			}
 			// Also update assignedUserIDs for any previously assigned rel that changed
 			for (const [relID, ar] of updatedMap) {
 				if (changedRelIDs.has(relID)) {
-					updatedMap.set(relID, { ...ar, assignedUserIDs: combinedRosters.get(relID) ?? ar.assignedUserIDs });
+					updatedMap.set(relID, { ...ar, assignedUserIDs: getUserTuple(relID, userID) });
 				}
 			}
 			const key = relationshipAssignmentKey(relationshipSelectorID, userID);

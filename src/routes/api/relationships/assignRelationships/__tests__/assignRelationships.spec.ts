@@ -272,6 +272,79 @@ describe('POST /api/relationships/assignRelationships', () => {
     }
   });
 
+  // ── Tuple correctness regression ────────────────────────────────────────────
+  // Each user's assignedUserIDs must contain ONLY their specific tuple-mates,
+  // not the entire flat roster. This requires multiple tuples (e.g. 4 users in
+  // a size-2 relationship → 2 pairs) to be detectable.
+  it('stores per-user tuples, not the full roster, in assignedUserIDs', async () => {
+    const TUPLE_SELECTOR_ID = 'tuple-selector';
+    const tupleRelID = 'tuple-rel';
+
+    const tupleSelector = makeDoc(TUPLE_SELECTOR_ID, {
+      name: 'Tuple Test',
+      relationshipIDs: [tupleRelID],
+      relationshipsPerCharacter: 1
+    });
+
+    // size=2, capacity=4 → 4 users fill the relationship, split into 2 pairs
+    const tupleRel = makeDoc(tupleRelID, { name: 'Tuple Rel', capacity: 4, size: 2, type: '', fields: {} });
+
+    const { database } = await import('$lib/database');
+    vi.mocked(database.relationshipSelectors!.doc).mockReturnValueOnce({
+      read: vi.fn(async () => tupleSelector)
+    } as any);
+    vi.mocked(database.relationships!.doc).mockImplementation((id: string) => ({
+      read: vi.fn(async () => (id === tupleRelID ? tupleRel : undefined))
+    }) as any);
+
+    // 4 participants all rank the same single relationship
+    assignmentDocs = ['u1', 'u2', 'u3', 'u4'].map((uid) =>
+      makeDoc(`${TUPLE_SELECTOR_ID}-${uid}`, {
+        userID: uid,
+        relationshipSelectorID: TUPLE_SELECTOR_ID,
+        relationshipRankings: [tupleRelID],
+        assignedRelationships: []
+      })
+    );
+
+    const res = await POST(makeEvent({ gameID: GAME_ID, relationshipSelectorID: TUPLE_SELECTOR_ID }));
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(body.assignments).toBe(4);
+
+    // Each user must have exactly 1 assignment (tupleRelID)
+    for (const op of batchOps) {
+      const data = op.data as { assignedRelationships: { relationshipID: string; assignedUserIDs: string[] }[] };
+      const entry = data.assignedRelationships.find((ar) => ar.relationshipID === tupleRelID);
+      expect(entry).toBeDefined();
+      // Must be exactly tuple-size (2), NOT the full roster (4)
+      expect(entry!.assignedUserIDs).toHaveLength(2);
+    }
+
+    // The two pairs must be disjoint: no user appears in more than one pair
+    const pairsByUser = new Map<string, string[]>();
+    for (const op of batchOps) {
+      const data = op.data as { assignedRelationships: { relationshipID: string; assignedUserIDs: string[] }[] };
+      const userID = op.path.split('/').pop()!.replace(`${TUPLE_SELECTOR_ID}-`, '');
+      const entry = data.assignedRelationships.find((ar) => ar.relationshipID === tupleRelID)!;
+      pairsByUser.set(userID, entry.assignedUserIDs);
+    }
+    // For each user, their stored tuple must contain themselves
+    for (const [userID, pair] of pairsByUser) {
+      expect(pair).toContain(userID);
+    }
+    // The two distinct pairs must share no members
+    const pairs = [...new Map([...pairsByUser].map(([, pair]) => [[...pair].sort().join('|'), pair])).values()];
+    expect(pairs).toHaveLength(2);
+    const [pairA, pairB] = pairs;
+    expect(pairA.some((u) => pairB.includes(u))).toBe(false);
+
+    // Restore
+    vi.mocked(database.relationships!.doc).mockImplementation((id: string) => ({
+      read: vi.fn(async () => relationships.find((r) => r.id === id))
+    }) as any);
+  });
+
   // ── Edge cases ──────────────────────────────────────────────────────────────
 
   it('returns error when no participants have submitted rankings', async () => {

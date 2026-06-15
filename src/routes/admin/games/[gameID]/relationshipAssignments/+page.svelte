@@ -25,6 +25,7 @@
 	const relationships = database.relationships;
 	const relationshipAssignments = database.relationshipAssignments;
 	const users = database.users;
+	const characters = database.characters;
 
 	// ── Derived lookups ────────────────────────────────────────────────────────
 	const relationshipsById: Readable<Record<string, Docs.Relationship>> = derived(
@@ -35,6 +36,11 @@
 	const usersById: Readable<Record<string, Docs.User>> = derived(
 		users ?? readable([]),
 		($users) => keyBy($users ?? [], 'id')
+	);
+
+	const charactersById: Readable<Record<string, Docs.Character>> = derived(
+		characters ?? readable([]),
+		($chars) => keyBy($chars ?? [], 'id')
 	);
 
 	// Group assignments by selectorID for quick lookup
@@ -74,6 +80,12 @@
 	// ── User email helpers ─────────────────────────────────────────────────────
 	const getUserEmail = (userID: string): string => {
 		return $usersById[userID]?.data?.email ?? userID;
+	};
+
+	const getCharacterLabel = (userID: string): string => {
+		const email = getUserEmail(userID);
+		const charName = $charactersById[userID]?.data?.name;
+		return charName ? `${email} (${charName})` : email;
 	};
 
 	const getUserName = (userID: string): string => {
@@ -273,7 +285,8 @@
 	// ── Build per-relationship roster display ─────────────────────────────────
 	interface RosterEntry {
 		relationshipID: string;
-		userIDs: string[];
+		userIDs: string[];    // flat list for count display
+		tuples: string[][];   // actual paired groups from stored assignedUserIDs
 	}
 
 	const rostersBySelectorId: Readable<Record<string, RosterEntry[]>> = derived(
@@ -284,16 +297,30 @@
 				const relIDs: string[] = selector.data.relationshipIDs ?? [];
 				const selectorAssignments = $assignments[selector.id] ?? [];
 				const rosterMap = new Map<string, Set<string>>();
-				for (const relID of relIDs) rosterMap.set(relID, new Set());
+				const tupleSetByRelID = new Map<string, Map<string, string[]>>();
+				for (const relID of relIDs) {
+					rosterMap.set(relID, new Set());
+					tupleSetByRelID.set(relID, new Map());
+				}
 				for (const assignment of selectorAssignments) {
 					for (const ar of assignment.data.assignedRelationships ?? []) {
-						if (!rosterMap.has(ar.relationshipID)) rosterMap.set(ar.relationshipID, new Set());
+						if (!rosterMap.has(ar.relationshipID)) {
+							rosterMap.set(ar.relationshipID, new Set());
+							tupleSetByRelID.set(ar.relationshipID, new Map());
+						}
 						rosterMap.get(ar.relationshipID)!.add(assignment.data.userID);
+						// Deduplicate tuples by their sorted member list
+						const tupleSet = tupleSetByRelID.get(ar.relationshipID)!;
+						const key = [...ar.assignedUserIDs].sort().join('|');
+						if (!tupleSet.has(key)) {
+							tupleSet.set(key, ar.assignedUserIDs);
+						}
 					}
 				}
 				result[selector.id] = relIDs.map((relID) => ({
 					relationshipID: relID,
-					userIDs: Array.from(rosterMap.get(relID) ?? [])
+					userIDs: Array.from(rosterMap.get(relID) ?? []),
+					tuples: [...(tupleSetByRelID.get(relID)?.values() ?? [])]
 				}));
 			}
 			return result;
@@ -437,7 +464,7 @@
 							{:else}
 								{@const rosters = $rostersBySelectorId[selector.id] ?? []}
 								<div class="rosters">
-									{#each rosters as { relationshipID, userIDs } (relationshipID)}
+									{#each rosters as { relationshipID, userIDs, tuples } (relationshipID)}
 										{@const rel = $relationshipsById[relationshipID]}
 									{@const isRelShared = isRelationshipShared(selector.id, relationshipID)}
 									<div class="roster-section mb3">
@@ -461,29 +488,27 @@
 											{/if}
 									</div>
 
-									{#if userIDs.length === 0}
-										<p class="muted h5">No one assigned yet.</p>
-									{:else}
-										<!-- Group into tuples of `size` -->
-												{@const tupleSize = rel?.data?.size ?? 2}
-												{#each Array.from({ length: Math.ceil(userIDs.length / tupleSize) }, (_, i) => userIDs.slice(i * tupleSize, (i + 1) * tupleSize)) as tuple, tupleIndex}
-													<div class="tuple-row flex items-center g1 mb1 p1 rounded bg-secondary">
-														<span class="muted h5 tuple-label">Group {tupleIndex + 1}</span>
-														<div class="flex flex-wrap g1 flex-auto">
-															{#each tuple as userID}
-															<div class="user-chip bg-surface flex items-center g1">
-																<span>{getUserEmail(userID)}</span>
-																<IconButton
-																	icon="edit"
-																	title="Replace this user"
-																	on:click={() => openEdit(selector.id, relationshipID, userID, userIDs)}
-																/>
-															</div>
-														{/each}
-														</div>
-													</div>
+{#if tuples.length === 0}
+									<p class="muted h5">No one assigned yet.</p>
+								{:else}
+									{#each tuples as tuple, tupleIndex}
+										<div class="tuple-row flex items-center g1 mb1 p1 rounded bg-secondary">
+											<span class="muted h5 tuple-label">Group {tupleIndex + 1}</span>
+											<div class="flex flex-wrap g1 flex-auto">
+												{#each tuple as userID}
+												<div class="user-chip bg-surface flex items-center g1">
+												<span>{getCharacterLabel(userID)}</span>
+													<IconButton
+														icon="edit"
+														title="Replace this user"
+														on:click={() => openEdit(selector.id, relationshipID, userID, tuple)}
+													/>
+												</div>
 												{/each}
-											{/if}
+											</div>
+										</div>
+									{/each}
+								{/if}
 										</div>
 									{/each}
 								</div>

@@ -705,4 +705,255 @@ describe('POST /api/relationships/assignRelationships', () => {
       read: vi.fn(async () => relationships.find((r) => r.id === id))
     }) as any);
   });
+
+  it('preserves existing complete tuples when rerunning for unmatched participants', async () => {
+    const stableSelectorID = 'stable-tuples-selector';
+    const stableRelID = 'stable-rel';
+
+    const stableSelector = makeDoc(stableSelectorID, {
+      name: 'Stable Tuples Selector',
+      relationshipIDs: [stableRelID],
+      relationshipsPerCharacter: 1
+    });
+
+    const stableRelationship = makeDoc(stableRelID, {
+      name: 'Stable Relationship',
+      capacity: 0,
+      size: 2,
+      type: '',
+      fields: {}
+    });
+
+    const { database } = await import('$lib/database');
+    vi.mocked(database.relationshipSelectors!.doc).mockReturnValueOnce({
+      read: vi.fn(async () => stableSelector)
+    } as any);
+    vi.mocked(database.relationships!.doc).mockImplementation((id: string) => ({
+      read: vi.fn(async () => (id === stableRelID ? stableRelationship : undefined))
+    }) as any);
+
+    // Existing complete tuples are [e1, e3] and [e2, e4].
+    // The docs are intentionally ordered by user so rebuilding tuples from a flat
+    // roster would produce [e1, e2] and [e3, e4], which would rewrite the
+    // original connections.
+    const existingDocs = [
+      makeDoc(`${stableSelectorID}-e1`, {
+        userID: 'e1',
+        relationshipSelectorID: stableSelectorID,
+        relationshipRankings: [stableRelID],
+        assignedRelationships: [{ relationshipID: stableRelID, assignedUserIDs: ['e1', 'e3'] }]
+      }),
+      makeDoc(`${stableSelectorID}-e2`, {
+        userID: 'e2',
+        relationshipSelectorID: stableSelectorID,
+        relationshipRankings: [stableRelID],
+        assignedRelationships: [{ relationshipID: stableRelID, assignedUserIDs: ['e2', 'e4'] }]
+      }),
+      makeDoc(`${stableSelectorID}-e3`, {
+        userID: 'e3',
+        relationshipSelectorID: stableSelectorID,
+        relationshipRankings: [stableRelID],
+        assignedRelationships: [{ relationshipID: stableRelID, assignedUserIDs: ['e1', 'e3'] }]
+      }),
+      makeDoc(`${stableSelectorID}-e4`, {
+        userID: 'e4',
+        relationshipSelectorID: stableSelectorID,
+        relationshipRankings: [stableRelID],
+        assignedRelationships: [{ relationshipID: stableRelID, assignedUserIDs: ['e2', 'e4'] }]
+      })
+    ];
+
+    const newDocs = [
+      makeDoc(`${stableSelectorID}-n1`, {
+        userID: 'n1',
+        relationshipSelectorID: stableSelectorID,
+        relationshipRankings: [stableRelID],
+        assignedRelationships: []
+      }),
+      makeDoc(`${stableSelectorID}-n2`, {
+        userID: 'n2',
+        relationshipSelectorID: stableSelectorID,
+        relationshipRankings: [stableRelID],
+        assignedRelationships: []
+      })
+    ];
+
+    assignmentDocs = [...existingDocs, ...newDocs];
+
+    const res = await POST(makeEvent({ gameID: GAME_ID, relationshipSelectorID: stableSelectorID }));
+    const body = await res.json();
+    expect(body.success).toBe(true);
+
+    const e1Op = batchOps.find((op) => op.path.includes(`${stableSelectorID}-e1`));
+    const e2Op = batchOps.find((op) => op.path.includes(`${stableSelectorID}-e2`));
+    const e3Op = batchOps.find((op) => op.path.includes(`${stableSelectorID}-e3`));
+    const e4Op = batchOps.find((op) => op.path.includes(`${stableSelectorID}-e4`));
+
+    expect(e1Op).toBeDefined();
+    expect(e2Op).toBeDefined();
+    expect(e3Op).toBeDefined();
+    expect(e4Op).toBeDefined();
+
+    const getAssignedUserIDs = (op: { data: unknown }) => {
+      const rels = (op.data as { assignedRelationships: { relationshipID: string; assignedUserIDs: string[] }[] })
+        .assignedRelationships;
+      return rels.find((ar) => ar.relationshipID === stableRelID)?.assignedUserIDs ?? [];
+    };
+
+    expect(getAssignedUserIDs(e1Op!)).toEqual(['e1', 'e3']);
+    expect(getAssignedUserIDs(e3Op!)).toEqual(['e1', 'e3']);
+    expect(getAssignedUserIDs(e2Op!)).toEqual(['e2', 'e4']);
+    expect(getAssignedUserIDs(e4Op!)).toEqual(['e2', 'e4']);
+
+    // Restore
+    vi.mocked(database.relationships!.doc).mockImplementation((id: string) => ({
+      read: vi.fn(async () => relationships.find((r) => r.id === id))
+    }) as any);
+  });
+
+  it('production-shape rerun preserves existing tuples and only adds new relationships', async () => {
+    const PROD_SELECTOR_ID = 'prod-shape-selector';
+    const INITIAL_USERS = 99;
+    const ADDED_USERS = 6;
+    const REL_COUNT = 14;
+    const relIDs = Array.from({ length: REL_COUNT }, (_, i) => `prod-rel-${i}`);
+
+    const prodSelector = makeDoc(PROD_SELECTOR_ID, {
+      name: 'Production Shape Selector',
+      relationshipIDs: relIDs,
+      relationshipsPerCharacter: 2
+    });
+
+    const prodRelationships = relIDs.map((id, i) =>
+      makeDoc(id, {
+        name: `Prod Relationship ${i}`,
+        capacity: 0,
+        size: i < 12 ? 2 : 3,
+        type: '',
+        fields: {}
+      })
+    );
+
+    const { database } = await import('$lib/database');
+    vi.mocked(database.relationshipSelectors!.doc).mockImplementation((id: string) => ({
+      read: vi.fn(async () => (id === PROD_SELECTOR_ID ? prodSelector : selectorDoc))
+    }) as any);
+    vi.mocked(database.relationships!.doc).mockImplementation((id: string) => ({
+      read: vi.fn(async () => prodRelationships.find((r) => r.id === id) ?? relationships.find((r) => r.id === id))
+    }) as any);
+
+    const rotatedRankings = (offset: number) => {
+      const shifted = [...relIDs.slice(offset), ...relIDs.slice(0, offset)];
+      return shifted;
+    };
+
+    const initialDocs = Array.from({ length: INITIAL_USERS }, (_, i) => {
+      const uid = `prod-user-${i}`;
+      return makeDoc(`${PROD_SELECTOR_ID}-${uid}`, {
+        userID: uid,
+        relationshipSelectorID: PROD_SELECTOR_ID,
+        relationshipRankings: rotatedRankings(i % relIDs.length),
+        assignedRelationships: []
+      });
+    });
+
+    assignmentDocs = initialDocs;
+
+    const applyBatchOpsToAssignmentDocs = () => {
+      const byDocID = new Map(assignmentDocs.map((d) => [d.id, d]));
+      for (const op of batchOps) {
+        const docID = op.path.split('/').pop()!;
+        const payload = op.data as { assignedRelationships?: any[] };
+        const existing = byDocID.get(docID);
+        if (existing) {
+          existing.data = {
+            ...existing.data,
+            ...(payload.assignedRelationships ? { assignedRelationships: payload.assignedRelationships } : {})
+          };
+        } else {
+          const userID = docID.replace(`${PROD_SELECTOR_ID}-`, '');
+          const created = makeDoc(docID, {
+            userID,
+            relationshipSelectorID: PROD_SELECTOR_ID,
+            relationshipRankings: [],
+            assignedRelationships: payload.assignedRelationships ?? []
+          });
+          assignmentDocs.push(created as any);
+          byDocID.set(docID, created as any);
+        }
+      }
+    };
+
+    const getRelMap = (doc: any): Record<string, string[]> => {
+      const rels = doc.data.assignedRelationships ?? [];
+      const out: Record<string, string[]> = {};
+      for (const rel of rels) {
+        out[rel.relationshipID] = [...(rel.assignedUserIDs ?? [])].sort();
+      }
+      return out;
+    };
+
+    // 1) First run
+    let res = await POST(makeEvent({ gameID: GAME_ID, relationshipSelectorID: PROD_SELECTOR_ID }));
+    let body = await res.json();
+    expect(body.success).toBe(true);
+    expect(body.assignments).toBe(INITIAL_USERS);
+    applyBatchOpsToAssignmentDocs();
+
+    const baselineByUser = new Map<string, Record<string, string[]>>();
+    for (const d of assignmentDocs) {
+      if (!d.data.userID.startsWith('prod-user-')) continue;
+      baselineByUser.set(d.data.userID, getRelMap(d));
+    }
+
+    // 2) Add 6 new participants
+    const addedDocs = Array.from({ length: ADDED_USERS }, (_, i) => {
+      const uid = `prod-new-${i}`;
+      return makeDoc(`${PROD_SELECTOR_ID}-${uid}`, {
+        userID: uid,
+        relationshipSelectorID: PROD_SELECTOR_ID,
+        relationshipRankings: rotatedRankings((i * 3) % relIDs.length),
+        assignedRelationships: []
+      });
+    });
+    assignmentDocs = [...assignmentDocs, ...addedDocs];
+
+    batchOps = [];
+    batchCommitCount = 0;
+
+    // 3) Rerun for unmatched participants
+    res = await POST(makeEvent({ gameID: GAME_ID, relationshipSelectorID: PROD_SELECTOR_ID }));
+    body = await res.json();
+    expect(body.success).toBe(true);
+    expect(body.assignments).toBe(ADDED_USERS);
+    applyBatchOpsToAssignmentDocs();
+
+    // Existing users: pre-existing relationships must stay exactly the same tuple members.
+    // They may gain additional relationships due to fill behavior.
+    for (const d of assignmentDocs) {
+      const uid = d.data.userID;
+      if (!uid.startsWith('prod-user-')) continue;
+      const before = baselineByUser.get(uid)!;
+      const after = getRelMap(d);
+
+      for (const [relID, beforeTuple] of Object.entries(before)) {
+        expect(after[relID]).toBeDefined();
+        expect(after[relID]).toEqual(beforeTuple);
+      }
+    }
+
+    // New users should now have assignment data.
+    for (const d of assignmentDocs.filter((x) => x.data.userID.startsWith('prod-new-'))) {
+      expect(Array.isArray(d.data.assignedRelationships)).toBe(true);
+      expect(d.data.assignedRelationships.length).toBeGreaterThan(0);
+    }
+
+    // Restore
+    vi.mocked(database.relationshipSelectors!.doc).mockImplementation(() => ({
+      read: vi.fn(async () => selectorDoc)
+    }) as any);
+    vi.mocked(database.relationships!.doc).mockImplementation((id: string) => ({
+      read: vi.fn(async () => relationships.find((r) => r.id === id))
+    }) as any);
+  });
 });

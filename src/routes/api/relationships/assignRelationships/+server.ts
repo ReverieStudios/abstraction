@@ -158,30 +158,83 @@ export const POST: RequestHandler = async (event) => {
 		const newRosters = matcher.fillTuples(matching, tupleSizes, existingCandidates);
 
 		// ── 7. Write results to Firestore via batched writes ────────────────────
-		// Build combined rosters: existing members + new-round additions per relID
-		const combinedRosters = new Map<string, string[]>();
-		for (const rel of relationships) {
-			const existing = existingRostersByRelID.get(rel.id) ?? [];
-			const added = newRosters.get(rel.id) ?? [];
-			combinedRosters.set(rel.id, [...existing, ...added]);
+		// Preserve existing tuple memberships exactly as stored, keyed by rel/user.
+		const existingTupleByRelUser = new Map<string, Map<string, string[]>>();
+		const existingTuplesByRelID = new Map<string, string[][]>();
+		for (const assignment of alreadyAssigned) {
+			for (const ar of assignment.data.assignedRelationships ?? []) {
+				if (!existingTupleByRelUser.has(ar.relationshipID)) {
+					existingTupleByRelUser.set(ar.relationshipID, new Map());
+				}
+				if (!existingTuplesByRelID.has(ar.relationshipID)) {
+					existingTuplesByRelID.set(ar.relationshipID, []);
+				}
+				const byUser = existingTupleByRelUser.get(ar.relationshipID)!;
+				const tuple = Array.isArray(ar.assignedUserIDs) && ar.assignedUserIDs.length > 0
+					? ar.assignedUserIDs
+					: [assignment.data.userID];
+				const tuples = existingTuplesByRelID.get(ar.relationshipID)!;
+				const tupleKey = [...tuple].sort().join('|');
+				if (!tuples.some((t) => [...t].sort().join('|') === tupleKey)) {
+					tuples.push(tuple);
+				}
+				for (const uid of tuple) {
+					byUser.set(uid, tuple);
+				}
+			}
 		}
 
-		// Partition each relationship's combined roster into tuples so each user
-		// stores only their specific group, not the entire roster.
-		const tuplesByRelID = new Map<string, string[][]>();
-		for (const [relID, roster] of combinedRosters) {
+		// If a relationship already has incomplete tuples, rebalance that relationship
+		// with new-round additions so incomplete groups can be completed.
+		const rebalancedTuplesByRelID = new Map<string, string[][]>();
+		for (const [relID, tuples] of existingTuplesByRelID) {
+			const size = tupleSizes.get(relID) ?? 2;
+			const hasIncomplete = tuples.some((t) => t.length < size);
+			if (!hasIncomplete) continue;
+
+			const seen = new Set<string>();
+			const existingFlat: string[] = [];
+			for (const tuple of tuples) {
+				for (const uid of tuple) {
+					if (!seen.has(uid)) {
+						seen.add(uid);
+						existingFlat.push(uid);
+					}
+				}
+			}
+
+			const added = newRosters.get(relID) ?? [];
+			const combined = [...existingFlat, ...added.filter((uid) => !seen.has(uid))];
+			const rebalanced: string[][] = [];
+			for (let i = 0; i < combined.length; i += size) {
+				rebalanced.push(combined.slice(i, i + size));
+			}
+			rebalancedTuplesByRelID.set(relID, rebalanced);
+		}
+
+		// Build tuples only for new-round additions. Existing tuples are not re-sliced.
+		const newTuplesByRelID = new Map<string, string[][]>();
+		for (const [relID, roster] of newRosters) {
 			const size = tupleSizes.get(relID) ?? 2;
 			const tuples: string[][] = [];
 			for (let i = 0; i < roster.length; i += size) {
 				tuples.push(roster.slice(i, i + size));
 			}
-			tuplesByRelID.set(relID, tuples);
+			newTuplesByRelID.set(relID, tuples);
 		}
 
-		/** Returns the specific tuple within a relationship that contains this user. */
+		/** Returns the tuple for this user in this relationship, preferring preserved existing tuples. */
 		const getUserTuple = (relID: string, userID: string): string[] => {
-			const tuples = tuplesByRelID.get(relID) ?? [];
-			return tuples.find((t) => t.includes(userID)) ?? [userID];
+			const rebalancedTuples = rebalancedTuplesByRelID.get(relID);
+			if (rebalancedTuples) {
+				return rebalancedTuples.find((t) => t.includes(userID)) ?? [userID];
+			}
+
+			const existingTuple = existingTupleByRelUser.get(relID)?.get(userID);
+			if (existingTuple) return existingTuple;
+
+			const newTuples = newTuplesByRelID.get(relID) ?? [];
+			return newTuples.find((t) => t.includes(userID)) ?? [userID];
 		};
 
 		// Determine which relIDs gained new members this run

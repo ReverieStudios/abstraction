@@ -956,4 +956,109 @@ describe('POST /api/relationships/assignRelationships', () => {
       read: vi.fn(async () => relationships.find((r) => r.id === id))
     }) as any);
   });
+
+  it('does not create a new orphan tuple when a new participant fills an existing orphan', async () => {
+    const ORPHAN_SELECTOR_ID = 'orphan-rebalance-selector';
+    const relA = 'rel-a';
+    const relB = 'rel-b';
+
+    const orphanSelector = makeDoc(ORPHAN_SELECTOR_ID, {
+      name: 'Orphan Rebalance Selector',
+      relationshipIDs: [relA, relB],
+      relationshipsPerCharacter: 1
+    });
+
+    const orphanRels = [
+      makeDoc(relA, { name: 'Rel A', capacity: 0, size: 2, type: '', fields: {} }),
+      makeDoc(relB, { name: 'Rel B', capacity: 0, size: 2, type: '', fields: {} })
+    ];
+
+    const { database } = await import('$lib/database');
+    vi.mocked(database.relationshipSelectors!.doc).mockReturnValueOnce({
+      read: vi.fn(async () => orphanSelector)
+    } as any);
+    vi.mocked(database.relationships!.doc).mockImplementation((id: string) => ({
+      read: vi.fn(async () => orphanRels.find((r) => r.id === id))
+    }) as any);
+
+    // Existing state mimics a post-delete orphan on relA:
+    // - e1 is orphaned on relA
+    // - e2/e3 are assigned to relB and both ranked relA as well (eligible fill candidates)
+    const existingDocs = [
+      makeDoc(`${ORPHAN_SELECTOR_ID}-e1`, {
+        userID: 'e1',
+        relationshipSelectorID: ORPHAN_SELECTOR_ID,
+        relationshipRankings: [relA, relB],
+        assignedRelationships: [{ relationshipID: relA, assignedUserIDs: ['e1'] }]
+      }),
+      makeDoc(`${ORPHAN_SELECTOR_ID}-e2`, {
+        userID: 'e2',
+        relationshipSelectorID: ORPHAN_SELECTOR_ID,
+        relationshipRankings: [relA, relB],
+        assignedRelationships: [{ relationshipID: relB, assignedUserIDs: ['e2', 'e3'] }]
+      }),
+      makeDoc(`${ORPHAN_SELECTOR_ID}-e3`, {
+        userID: 'e3',
+        relationshipSelectorID: ORPHAN_SELECTOR_ID,
+        relationshipRankings: [relA, relB],
+        assignedRelationships: [{ relationshipID: relB, assignedUserIDs: ['e2', 'e3'] }]
+      })
+    ];
+
+    const newDoc = makeDoc(`${ORPHAN_SELECTOR_ID}-n1`, {
+      userID: 'n1',
+      relationshipSelectorID: ORPHAN_SELECTOR_ID,
+      relationshipRankings: [relA, relB],
+      assignedRelationships: []
+    });
+
+    assignmentDocs = [...existingDocs, newDoc];
+
+    const res = await POST(makeEvent({ gameID: GAME_ID, relationshipSelectorID: ORPHAN_SELECTOR_ID }));
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(body.assignments).toBe(1);
+
+    // Materialize the new assignedRelationships state from batch writes.
+    const finalByUser = new Map<string, { assignedRelationships: { relationshipID: string; assignedUserIDs: string[] }[] }>();
+    for (const d of assignmentDocs) {
+      finalByUser.set(d.data.userID, {
+        assignedRelationships: (d.data.assignedRelationships ?? []).map((ar: any) => ({
+          relationshipID: ar.relationshipID,
+          assignedUserIDs: ar.assignedUserIDs ?? []
+        }))
+      });
+    }
+    for (const op of batchOps) {
+      const docID = op.path.split('/').pop()!;
+      const userID = docID.replace(`${ORPHAN_SELECTOR_ID}-`, '');
+      const payload = op.data as { assignedRelationships: { relationshipID: string; assignedUserIDs: string[] }[] };
+      finalByUser.set(userID, {
+        assignedRelationships: payload.assignedRelationships.map((ar) => ({
+          relationshipID: ar.relationshipID,
+          assignedUserIDs: ar.assignedUserIDs ?? []
+        }))
+      });
+    }
+
+    // After rerun, relA should be fully paired and must not produce a new singleton tuple.
+    // Count unique relA tuples by sorted member set.
+    const relATuples = new Set<string>();
+    for (const [userID, doc] of finalByUser) {
+      const relAEntry = doc.assignedRelationships.find((ar) => ar.relationshipID === relA);
+      if (!relAEntry) continue;
+      // Sanity: each stored tuple should include the doc owner when present.
+      if (relAEntry.assignedUserIDs.includes(userID)) {
+        relATuples.add([...relAEntry.assignedUserIDs].sort().join('|'));
+      }
+    }
+
+    const hasSingletonRelATuple = [...relATuples].some((tupleKey) => tupleKey.split('|').length === 1);
+    expect(hasSingletonRelATuple).toBe(false);
+
+    // Restore
+    vi.mocked(database.relationships!.doc).mockImplementation((id: string) => ({
+      read: vi.fn(async () => relationships.find((r) => r.id === id))
+    }) as any);
+  });
 });

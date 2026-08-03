@@ -157,6 +157,13 @@ export const POST: RequestHandler = async (event) => {
 		// newRosters: Map<relID, newRoundUserIDs[]> — new-round additions only
 		const newRosters = matcher.fillTuples(matching, tupleSizes, existingCandidates);
 
+		// Matched new participants by relationship (excludes fill-only additions).
+		const matchedNewByRelID = new Map<string, string[]>();
+		for (const { applicant, post } of matching) {
+			if (!matchedNewByRelID.has(post)) matchedNewByRelID.set(post, []);
+			matchedNewByRelID.get(post)!.push(applicant);
+		}
+
 		// ── 7. Write results to Firestore via batched writes ────────────────────
 		// Preserve existing tuple memberships exactly as stored, keyed by rel/user.
 		const existingTupleByRelUser = new Map<string, Map<string, string[]>>();
@@ -186,7 +193,9 @@ export const POST: RequestHandler = async (event) => {
 
 		// If a relationship already has incomplete tuples, rebalance that relationship
 		// with new-round additions so incomplete groups can be completed.
+		// Fill is capped to exactly the deficit so we do not create a new orphan tuple.
 		const rebalancedTuplesByRelID = new Map<string, string[][]>();
+		const effectiveNewRostersByRelID = new Map<string, string[]>();
 		for (const [relID, tuples] of existingTuplesByRelID) {
 			const size = tupleSizes.get(relID) ?? 2;
 			const hasIncomplete = tuples.some((t) => t.length < size);
@@ -203,18 +212,46 @@ export const POST: RequestHandler = async (event) => {
 				}
 			}
 
-			const added = newRosters.get(relID) ?? [];
-			const combined = [...existingFlat, ...added.filter((uid) => !seen.has(uid))];
+			const existingSet = new Set(existingFlat);
+			const matchedNew = matchedNewByRelID.get(relID) ?? [];
+			const matchedNewSet = new Set(matchedNew);
+
+			const baseCombined = [
+				...existingFlat,
+				...matchedNew.filter((uid) => !existingSet.has(uid))
+			];
+
+			const remainder = baseCombined.length % size;
+			const neededFill = remainder === 0 ? 0 : size - remainder;
+
+			const fillCandidates = (newRosters.get(relID) ?? []).filter(
+				(uid) => !existingSet.has(uid) && !matchedNewSet.has(uid)
+			);
+			const cappedFill = fillCandidates.slice(0, neededFill);
+
+			const combined = [...baseCombined, ...cappedFill];
 			const rebalanced: string[][] = [];
 			for (let i = 0; i < combined.length; i += size) {
 				rebalanced.push(combined.slice(i, i + size));
 			}
 			rebalancedTuplesByRelID.set(relID, rebalanced);
+
+			effectiveNewRostersByRelID.set(
+				relID,
+				combined.filter((uid) => !existingSet.has(uid))
+			);
+		}
+
+		// For relationships without incomplete existing tuples, keep matcher output as-is.
+		for (const [relID, roster] of newRosters) {
+			if (!effectiveNewRostersByRelID.has(relID)) {
+				effectiveNewRostersByRelID.set(relID, roster);
+			}
 		}
 
 		// Build tuples only for new-round additions. Existing tuples are not re-sliced.
 		const newTuplesByRelID = new Map<string, string[][]>();
-		for (const [relID, roster] of newRosters) {
+		for (const [relID, roster] of effectiveNewRostersByRelID) {
 			const size = tupleSizes.get(relID) ?? 2;
 			const tuples: string[][] = [];
 			for (let i = 0; i < roster.length; i += size) {
@@ -239,14 +276,14 @@ export const POST: RequestHandler = async (event) => {
 
 		// Determine which relIDs gained new members this run
 		const changedRelIDs = new Set<string>(
-			[...newRosters.entries()]
+			[...effectiveNewRostersByRelID.entries()]
 				.filter(([, users]) => users.length > 0)
 				.map(([relID]) => relID)
 		);
 
 		// Build per-user assignment list for new participants from combined rosters
 		const newUserAssignments = new Map<string, string[]>();
-		for (const [relID, userIDs] of newRosters) {
+		for (const [relID, userIDs] of effectiveNewRostersByRelID) {
 			for (const userID of userIDs) {
 				// Only track new-round users (not existing fill candidates pulled in)
 				if (newAssignments.some((a) => a.data.userID === userID)) {
@@ -300,7 +337,7 @@ export const POST: RequestHandler = async (event) => {
 		// (they appear in newRosters but are not in newAssignments)
 		const newParticipantIDs = new Set(newAssignments.map((a) => a.data.userID));
 		const fillFromExisting = new Map<string, string[]>(); // userID -> relIDs they were fill-added to
-		for (const [relID, userIDs] of newRosters) {
+		for (const [relID, userIDs] of effectiveNewRostersByRelID) {
 			for (const userID of userIDs) {
 				if (!newParticipantIDs.has(userID)) {
 					// This is an existing user pulled in as a fill candidate

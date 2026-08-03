@@ -461,14 +461,17 @@ describe('POST /api/relationships/assignRelationships', () => {
 
   // ── Incremental matchmaking ─────────────────────────────────────────────────
 
-  it('returns success with assignments=0 when all participants are already assigned', async () => {
-    // All docs have non-empty assignedRelationships
+  it('returns success with assignments=0 when all participants are already fully assigned', async () => {
+    // All docs are already at relationshipsPerCharacter.
     assignmentDocs = Array.from({ length: 5 }, (_, i) =>
       makeDoc(`${SELECTOR_ID}-user-${i}`, {
         userID: `user-${i}`,
         relationshipSelectorID: SELECTOR_ID,
         relationshipRankings: shuffle([...relationshipIDs]),
-        assignedRelationships: [{ relationshipID: relationshipIDs[0], assignedUserIDs: [`user-${i}`] }]
+        assignedRelationships: [
+          { relationshipID: relationshipIDs[0], assignedUserIDs: [`user-${i}`] },
+          { relationshipID: relationshipIDs[1], assignedUserIDs: [`user-${i}`] }
+        ]
       })
     );
 
@@ -479,18 +482,19 @@ describe('POST /api/relationships/assignRelationships', () => {
     expect(batchOps).toHaveLength(0); // nothing to write
   });
 
-  it('only matchmakes new participants when some are already assigned', async () => {
+  it('only matchmakes new participants when existing participants are already fully assigned', async () => {
     const ASSIGNED_COUNT = 10;
     const NEW_COUNT = 5;
 
-    // 10 already-assigned participants
+    // 10 already-fully-assigned participants (2 relationships each)
     const alreadyAssignedDocs = Array.from({ length: ASSIGNED_COUNT }, (_, i) =>
       makeDoc(`${SELECTOR_ID}-existing-${i}`, {
         userID: `existing-${i}`,
         relationshipSelectorID: SELECTOR_ID,
         relationshipRankings: shuffle([...relationshipIDs]),
         assignedRelationships: [
-          { relationshipID: relationshipIDs[i % NUM_POSTS], assignedUserIDs: [`existing-${i}`, `existing-${(i + 1) % ASSIGNED_COUNT}`] }
+          { relationshipID: relationshipIDs[i % NUM_POSTS], assignedUserIDs: [`existing-${i}`, `existing-${(i + 1) % ASSIGNED_COUNT}`] },
+          { relationshipID: relationshipIDs[(i + 1) % NUM_POSTS], assignedUserIDs: [`existing-${i}`, `existing-${(i + 2) % ASSIGNED_COUNT}`] }
         ]
       })
     );
@@ -527,13 +531,19 @@ describe('POST /api/relationships/assignRelationships', () => {
         userID: 'ea-0',
         relationshipSelectorID: SELECTOR_ID,
         relationshipRankings: [fullRelID, ...relationshipIDs.filter((r) => r !== fullRelID)],
-        assignedRelationships: [{ relationshipID: fullRelID, assignedUserIDs: ['ea-0', 'ea-1'] }]
+        assignedRelationships: [
+          { relationshipID: fullRelID, assignedUserIDs: ['ea-0', 'ea-1'] },
+          { relationshipID: 'rel-1', assignedUserIDs: ['ea-0', 'ea-1'] }
+        ]
       }),
       makeDoc(`${SELECTOR_ID}-ea-1`, {
         userID: 'ea-1',
         relationshipSelectorID: SELECTOR_ID,
         relationshipRankings: [fullRelID, ...relationshipIDs.filter((r) => r !== fullRelID)],
-        assignedRelationships: [{ relationshipID: fullRelID, assignedUserIDs: ['ea-0', 'ea-1'] }]
+        assignedRelationships: [
+          { relationshipID: fullRelID, assignedUserIDs: ['ea-0', 'ea-1'] },
+          { relationshipID: 'rel-1', assignedUserIDs: ['ea-0', 'ea-1'] }
+        ]
       })
     ];
 
@@ -585,7 +595,8 @@ describe('POST /api/relationships/assignRelationships', () => {
       // force it via alreadyAssigned: they *are* assigned to it already)
       relationshipRankings: [sharedRelID, ...relationshipIDs.slice(1)],
       assignedRelationships: [
-        { relationshipID: sharedRelID, assignedUserIDs: ['e1'] } // incomplete tuple
+        { relationshipID: sharedRelID, assignedUserIDs: ['e1'] }, // incomplete tuple
+        { relationshipID: relationshipIDs[1], assignedUserIDs: ['e1', 'e2'] }
       ]
     });
 
@@ -699,6 +710,55 @@ describe('POST /api/relationships/assignRelationships', () => {
     expect(e1Rel1).toBeDefined();
     expect(e1Rel1!.assignedUserIDs).toContain('n1-fill');
     expect(e1Rel1!.assignedUserIDs).toContain('e1-fill');
+
+    // Restore
+    vi.mocked(database.relationships!.doc).mockImplementation((id: string) => ({
+      read: vi.fn(async () => relationships.find((r) => r.id === id))
+    }) as any);
+  });
+
+  it('treats partially-assigned participants as unmatched and tops them up without dropping existing relationships', async () => {
+    const PARTIAL_SELECTOR_ID = 'partial-selector';
+
+    const partialSelector = makeDoc(PARTIAL_SELECTOR_ID, {
+      name: 'Partial Selector',
+      relationshipIDs: ['rel-a', 'rel-b'],
+      relationshipsPerCharacter: 2
+    });
+
+    const partialRels = [
+      makeDoc('rel-a', { name: 'Rel A', capacity: 10, size: 1, type: '', fields: {} }),
+      makeDoc('rel-b', { name: 'Rel B', capacity: 10, size: 1, type: '', fields: {} })
+    ];
+
+    const { database } = await import('$lib/database');
+    vi.mocked(database.relationshipSelectors!.doc).mockReturnValueOnce({
+      read: vi.fn(async () => partialSelector)
+    } as any);
+    vi.mocked(database.relationships!.doc).mockImplementation((id: string) => ({
+      read: vi.fn(async () => partialRels.find((r) => r.id === id))
+    }) as any);
+
+    assignmentDocs = [
+      makeDoc(`${PARTIAL_SELECTOR_ID}-user-1`, {
+        userID: 'user-1',
+        relationshipSelectorID: PARTIAL_SELECTOR_ID,
+        relationshipRankings: ['rel-a', 'rel-b'],
+        assignedRelationships: [{ relationshipID: 'rel-a', assignedUserIDs: ['user-1'], shared: false }]
+      })
+    ];
+
+    const res = await POST(makeEvent({ gameID: GAME_ID, relationshipSelectorID: PARTIAL_SELECTOR_ID }));
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(body.assignments).toBe(1);
+
+    const userOp = batchOps.find((op) => op.path.includes(`${PARTIAL_SELECTOR_ID}-user-1`));
+    expect(userOp).toBeDefined();
+    const written = (userOp!.data as { assignedRelationships: { relationshipID: string }[] }).assignedRelationships;
+    const relIDs = written.map((r) => r.relationshipID);
+    expect(relIDs).toContain('rel-a');
+    expect(relIDs).toContain('rel-b');
 
     // Restore
     vi.mocked(database.relationships!.doc).mockImplementation((id: string) => ({
@@ -866,8 +926,9 @@ describe('POST /api/relationships/assignRelationships', () => {
         const payload = op.data as { assignedRelationships?: any[] };
         const existing = byDocID.get(docID);
         if (existing) {
+          const existingData = (existing as any).data ?? {};
           existing.data = {
-            ...existing.data,
+            ...existingData,
             ...(payload.assignedRelationships ? { assignedRelationships: payload.assignedRelationships } : {})
           };
         } else {
@@ -902,8 +963,9 @@ describe('POST /api/relationships/assignRelationships', () => {
 
     const baselineByUser = new Map<string, Record<string, string[]>>();
     for (const d of assignmentDocs) {
-      if (!d.data.userID.startsWith('prod-user-')) continue;
-      baselineByUser.set(d.data.userID, getRelMap(d));
+      const data = (d as any).data;
+      if (!data.userID.startsWith('prod-user-')) continue;
+      baselineByUser.set(data.userID, getRelMap(d));
     }
 
     // 2) Add 6 new participants
@@ -931,7 +993,7 @@ describe('POST /api/relationships/assignRelationships', () => {
     // Existing users: pre-existing relationships must stay exactly the same tuple members.
     // They may gain additional relationships due to fill behavior.
     for (const d of assignmentDocs) {
-      const uid = d.data.userID;
+      const uid = (d as any).data.userID;
       if (!uid.startsWith('prod-user-')) continue;
       const before = baselineByUser.get(uid)!;
       const after = getRelMap(d);
@@ -943,9 +1005,10 @@ describe('POST /api/relationships/assignRelationships', () => {
     }
 
     // New users should now have assignment data.
-    for (const d of assignmentDocs.filter((x) => x.data.userID.startsWith('prod-new-'))) {
-      expect(Array.isArray(d.data.assignedRelationships)).toBe(true);
-      expect(d.data.assignedRelationships.length).toBeGreaterThan(0);
+    for (const d of assignmentDocs.filter((x) => (x as any).data.userID.startsWith('prod-new-'))) {
+      const data = (d as any).data;
+      expect(Array.isArray(data.assignedRelationships)).toBe(true);
+      expect(data.assignedRelationships.length).toBeGreaterThan(0);
     }
 
     // Restore
@@ -1022,8 +1085,9 @@ describe('POST /api/relationships/assignRelationships', () => {
     // Materialize the new assignedRelationships state from batch writes.
     const finalByUser = new Map<string, { assignedRelationships: { relationshipID: string; assignedUserIDs: string[] }[] }>();
     for (const d of assignmentDocs) {
-      finalByUser.set(d.data.userID, {
-        assignedRelationships: (d.data.assignedRelationships ?? []).map((ar: any) => ({
+      const data = (d as any).data;
+      finalByUser.set(data.userID, {
+        assignedRelationships: (data.assignedRelationships ?? []).map((ar: any) => ({
           relationshipID: ar.relationshipID,
           assignedUserIDs: ar.assignedUserIDs ?? []
         }))

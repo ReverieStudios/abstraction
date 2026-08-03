@@ -60,6 +60,7 @@
 	let running: Record<string, boolean> = {};
 	let clearing: Record<string, boolean> = {};
 	let sharing: Record<string, boolean> = {};
+	let deletingGroups: Record<string, boolean> = {};
 
 	// ── Manual edit state ──────────────────────────────────────────────────────
 	// Editing means: swap a specific user out of a specific relationship.
@@ -114,13 +115,15 @@
 	};
 
 	// ── Count participants with rankings but no assignment yet ─────────────────
-	const countUnassigned = (selectorID: string): number => {
+	const countUnassigned = (selector: Docs.RelationshipSelector): number => {
+		const selectorID = selector.id;
+		const expectedCount = selector.data.relationshipsPerCharacter ?? 1;
 		const assignments = $assignmentsBySelectorId[selectorID] ?? [];
 		return assignments.filter(
 			(a) =>
 				Array.isArray(a.data.relationshipRankings) &&
 				a.data.relationshipRankings.length > 0 &&
-				(!Array.isArray(a.data.assignedRelationships) || a.data.assignedRelationships.length === 0)
+				((a.data.assignedRelationships ?? []).length < expectedCount)
 		).length;
 	};
 
@@ -166,6 +169,37 @@
 			sendNotification({ text: 'Network error clearing assignments' });
 		} finally {
 			clearing = { ...clearing, [selectorID]: false };
+		}
+	};
+
+	const tupleKey = (tuple: string[]): string => [...tuple].sort().join('|');
+
+	// ── Delete one relationship group (tuple) only ───────────────────────────
+	const deleteAssignedGroup = async (selectorID: string, relationshipID: string, tuple: string[]) => {
+		if (!Array.isArray(tuple) || tuple.length === 0) return;
+		const key = `${selectorID}:${relationshipID}:${tupleKey(tuple)}`;
+		deletingGroups = { ...deletingGroups, [key]: true };
+		try {
+			const res = await fetch('/api/relationships/deleteAssignedGroup', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					gameID,
+					relationshipSelectorID: selectorID,
+					relationshipID,
+					tupleUserIDs: tuple
+				})
+			});
+			const body = await res.json();
+			if (body.success) {
+				sendNotification({ text: `Deleted group for ${body.updated} participant(s)` });
+			} else {
+				sendNotification({ text: `Error: ${body.message ?? 'Unknown error'}` });
+			}
+		} catch (err) {
+			sendNotification({ text: 'Network error deleting assigned group' });
+		} finally {
+			deletingGroups = { ...deletingGroups, [key]: false };
 		}
 	};
 
@@ -424,7 +458,7 @@
 			{#each $relationshipSelectors as selector (selector.id)}
 				{@const selectorHasAssignments = hasAssignments(selector.id)}
 				{@const rankingCount = countRankings(selector.id)}
-				{@const unassignedCount = countUnassigned(selector.id)}
+				{@const unassignedCount = countUnassigned(selector)}
 				{@const isRunning = running[selector.id]}
 				{@const isClearing = clearing[selector.id]}
 				{@const isExpanded = $expanded[selector.id] ?? false}
@@ -550,6 +584,16 @@
 													</button>
 												{/if}
 											</div>
+											<div class="tuple-actions">
+												{#if deletingGroups[`${selector.id}:${relationshipID}:${tupleKey(tuple)}`]}
+													<Spinner />
+												{:else}
+													<ConfirmButton
+														icon="delete"
+														on:confirm={() => deleteAssignedGroup(selector.id, relationshipID, tuple)}
+													/>
+												{/if}
+											</div>
 										</div>
 									{/each}
 								{/if}
@@ -627,6 +671,11 @@
 
 	.tuple-row {
 		border: 1px solid var(--surface);
+	}
+
+	.tuple-actions {
+		display: inline-flex;
+		align-items: center;
 	}
 
 	.user-chip {

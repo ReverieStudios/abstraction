@@ -57,18 +57,19 @@ export const POST: RequestHandler = async (event) => {
 			?.withQueries({ field: 'relationshipSelectorID', op: '==', value: relationshipSelectorID })
 			.read() ?? [];
 
-		// Split into already-assigned participants and new ones needing matching
-		const alreadyAssigned = allAssignments.filter(
-			(a) =>
-				Array.isArray(a.data.assignedRelationships) &&
-				a.data.assignedRelationships.length > 0
-		);
-		const newAssignments = allAssignments.filter(
+		const assignedCount = (a: Docs.RelationshipAssignment): number =>
+			Array.isArray(a.data.assignedRelationships) ? a.data.assignedRelationships.length : 0;
+
+		// Participants who have submitted rankings and still need more assignments.
+		const assignmentsNeedingMatch = allAssignments.filter(
 			(a) =>
 				Array.isArray(a.data.relationshipRankings) &&
 				a.data.relationshipRankings.length > 0 &&
-				(!Array.isArray(a.data.assignedRelationships) || a.data.assignedRelationships.length === 0)
+				assignedCount(a) < relationshipsPerCharacter
 		);
+
+		// Participants with at least one existing assignment (used for existing rosters/tuples).
+		const participantsWithAssignments = allAssignments.filter((a) => assignedCount(a) > 0);
 
 		// No one has submitted rankings at all
 		const anyWithRankings = allAssignments.some(
@@ -79,14 +80,16 @@ export const POST: RequestHandler = async (event) => {
 		}
 
 		// Everyone who submitted rankings is already assigned
-		if (newAssignments.length === 0) {
-			return json({ success: true, assignments: 0, message: 'All participants are already assigned' });
+		if (assignmentsNeedingMatch.length === 0) {
+			return json({ success: true, assignments: 0, message: 'All participants are already fully assigned' });
 		}
+
+		const matchingParticipantIDs = new Set(assignmentsNeedingMatch.map((a) => a.data.userID));
 
 		// ── 4. Build existing roster map from already-assigned docs ────────────
 		// existingRostersByRelID: relID -> set of userIDs already in that relationship
 		const existingRostersByRelID = new Map<string, string[]>();
-		for (const assignment of alreadyAssigned) {
+		for (const assignment of participantsWithAssignments) {
 			for (const ar of assignment.data.assignedRelationships ?? []) {
 				if (!existingRostersByRelID.has(ar.relationshipID)) {
 					existingRostersByRelID.set(ar.relationshipID, []);
@@ -101,7 +104,8 @@ export const POST: RequestHandler = async (event) => {
 		// ── 5. Build existingCandidates for fillTuples ─────────────────────────
 		// For each already-assigned user, collect posts they ranked but were NOT assigned to.
 		const existingCandidates: { applicant: string; post: string; rank: number }[] = [];
-		for (const assignment of alreadyAssigned) {
+		for (const assignment of participantsWithAssignments) {
+			if (matchingParticipantIDs.has(assignment.data.userID)) continue;
 			const assignedRelIDs = new Set(
 				(assignment.data.assignedRelationships ?? []).map((ar) => ar.relationshipID)
 			);
@@ -113,15 +117,18 @@ export const POST: RequestHandler = async (event) => {
 			});
 		}
 
-		// ── 6. Build and run the matcher (new participants only) ────────────────
+		// ── 6. Build and run the matcher (participants who still need assignments) ────────────────
 		const matcher = new CapacitatedRankMaximalMatcher();
 
-		const shuffledNewAssignments = [...newAssignments].sort(() => Math.random() - 0.5);
+		const shuffledAssignmentsNeedingMatch = [...assignmentsNeedingMatch].sort(() => Math.random() - 0.5);
 		const shuffledRelationships = [...relationships].sort(() => Math.random() - 0.5);
 
-		// Add applicant nodes for new participants only
-		for (const assignment of shuffledNewAssignments) {
-			matcher.addNode(assignment.data.userID, false, relationshipsPerCharacter);
+		// Add applicant nodes with per-user remaining capacity.
+		for (const assignment of shuffledAssignmentsNeedingMatch) {
+			const remainingCapacity = Math.max(0, relationshipsPerCharacter - assignedCount(assignment));
+			if (remainingCapacity > 0) {
+				matcher.addNode(assignment.data.userID, false, remainingCapacity);
+			}
 		}
 
 		// Add post nodes with capacity reduced by existing assignments
@@ -140,18 +147,24 @@ export const POST: RequestHandler = async (event) => {
 			}
 		}
 
-		// Add ranked edges from new participants (only to posts that have remaining slots)
-		for (const assignment of shuffledNewAssignments) {
+		// Add ranked edges from participants needing assignments (skip already-assigned relIDs).
+		for (const assignment of shuffledAssignmentsNeedingMatch) {
 			const userID = assignment.data.userID;
 			const rankings: string[] = assignment.data.relationshipRankings ?? [];
+			const existingRelIDs = new Set(
+				(assignment.data.assignedRelationships ?? []).map((ar) => ar.relationshipID)
+			);
 			rankings.forEach((relID, index) => {
-				if (addedPostIDs.has(relID)) {
+				if (addedPostIDs.has(relID) && !existingRelIDs.has(relID)) {
 					matcher.addEdge(userID, relID, index + 1);
 				}
 			});
 		}
 
-		const maxRank = Math.max(...shuffledNewAssignments.map((a) => a.data.relationshipRankings?.length ?? 0), 1);
+		const maxRank = Math.max(
+			...shuffledAssignmentsNeedingMatch.map((a) => a.data.relationshipRankings?.length ?? 0),
+			1
+		);
 
 		const matching = matcher.solve(maxRank);
 		// newRosters: Map<relID, newRoundUserIDs[]> — new-round additions only
@@ -179,7 +192,7 @@ export const POST: RequestHandler = async (event) => {
 		const existingMembersByRelID = new Map<string, Set<string>>();
 		const existingTupleByRelUser = new Map<string, Map<string, string[]>>();
 		const existingTupleKeysByRelID = new Map<string, Set<string>>();
-		for (const assignment of alreadyAssigned) {
+		for (const assignment of participantsWithAssignments) {
 			for (const ar of assignment.data.assignedRelationships ?? []) {
 				if (!existingTuplesByRelID.has(ar.relationshipID)) {
 					existingTuplesByRelID.set(ar.relationshipID, []);
@@ -289,12 +302,12 @@ export const POST: RequestHandler = async (event) => {
 				.map(([relID]) => relID)
 		);
 
-		// Build per-user assignment list for new participants from combined rosters
+		// Build per-user assignment list for participants needing assignments.
 		const newUserAssignments = new Map<string, string[]>();
 		for (const [relID, userIDs] of effectiveNewRostersByRelID) {
 			for (const userID of userIDs) {
-				// Only track new-round users (not existing fill candidates pulled in)
-				if (newAssignments.some((a) => a.data.userID === userID)) {
+				// Only track users this run was trying to (partially) assign.
+				if (matchingParticipantIDs.has(userID)) {
 					if (!newUserAssignments.has(userID)) newUserAssignments.set(userID, []);
 					newUserAssignments.get(userID)!.push(relID);
 				}
@@ -307,21 +320,36 @@ export const POST: RequestHandler = async (event) => {
 		};
 		const ops: WriteOp[] = [];
 
-		// Write docs for new participants
-		for (const assignment of newAssignments) {
+		// Write docs for participants who were matched this run, preserving existing relationships.
+		for (const assignment of assignmentsNeedingMatch) {
 			const userID = assignment.data.userID;
 			const assignedRelIDs = newUserAssignments.get(userID) ?? [];
-			const assignedRelationships = assignedRelIDs.map((relID) => ({
-				relationshipID: relID,
-				assignedUserIDs: getUserTuple(relID, userID),
-				shared: false
-			}));
+			const existingRels = assignment.data.assignedRelationships ?? [];
+			const updatedMap = new Map(existingRels.map((ar) => [ar.relationshipID, ar]));
+
+			for (const relID of assignedRelIDs) {
+				const prev = updatedMap.get(relID);
+				updatedMap.set(relID, {
+					relationshipID: relID,
+					assignedUserIDs: getUserTuple(relID, userID),
+					shared: prev?.shared ?? false
+				});
+			}
+
+			for (const [relID, ar] of updatedMap) {
+				if (changedRelIDs.has(relID)) {
+					updatedMap.set(relID, { ...ar, assignedUserIDs: getUserTuple(relID, userID) });
+				}
+			}
+
+			const assignedRelationships = [...updatedMap.values()];
 			const key = relationshipAssignmentKey(relationshipSelectorID, userID);
 			ops.push({ path: `games/${gameID}/relationshipAssignments/${key}`, data: { assignedRelationships } });
 		}
 
 		// Patch existing participants' docs for any relationship that gained new members
-		for (const assignment of alreadyAssigned) {
+		for (const assignment of participantsWithAssignments) {
+			if (matchingParticipantIDs.has(assignment.data.userID)) continue;
 			const touchedRels = (assignment.data.assignedRelationships ?? []).filter((ar) =>
 				changedRelIDs.has(ar.relationshipID)
 			);
@@ -342,8 +370,8 @@ export const POST: RequestHandler = async (event) => {
 		}
 
 		// Also patch any existing user who was pulled in as a fill candidate this run
-		// (they appear in newRosters but are not in newAssignments)
-		const newParticipantIDs = new Set(newAssignments.map((a) => a.data.userID));
+		// (they appear in newRosters but are not in this run's match target set)
+		const newParticipantIDs = new Set(assignmentsNeedingMatch.map((a) => a.data.userID));
 		const fillFromExisting = new Map<string, string[]>(); // userID -> relIDs they were fill-added to
 		for (const [relID, userIDs] of effectiveNewRostersByRelID) {
 			for (const userID of userIDs) {
@@ -355,7 +383,7 @@ export const POST: RequestHandler = async (event) => {
 			}
 		}
 		for (const [userID, addedRelIDs] of fillFromExisting) {
-			const existingDoc = alreadyAssigned.find((a) => a.data.userID === userID);
+			const existingDoc = participantsWithAssignments.find((a) => a.data.userID === userID);
 			if (!existingDoc) continue; // shouldn't happen
 			const existingRels = existingDoc.data.assignedRelationships ?? [];
 			// Merge: update changed rels + append newly fill-added rels
@@ -391,7 +419,7 @@ export const POST: RequestHandler = async (event) => {
 			await batch.commit();
 		}
 
-		return json({ success: true, assignments: newAssignments.length });
+		return json({ success: true, assignments: assignmentsNeedingMatch.length });
 	} catch (err: any) {
 		console.error('assignRelationships error:', err);
 		return json({ success: false, message: (err as Error).message ?? String(err) });

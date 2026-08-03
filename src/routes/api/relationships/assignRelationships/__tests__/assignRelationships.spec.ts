@@ -1061,4 +1061,165 @@ describe('POST /api/relationships/assignRelationships', () => {
       read: vi.fn(async () => relationships.find((r) => r.id === id))
     }) as any);
   });
+
+  it('fills an orphaned middle tuple without reshuffling adjacent complete tuples', async () => {
+    const SELECTOR_ID = 'rivalry-selector';
+    const RIVALRY_ID = 'rivalry';
+
+    const selector = makeDoc(SELECTOR_ID, {
+      name: 'Rivalry Selector',
+      relationshipIDs: [RIVALRY_ID],
+      relationshipsPerCharacter: 1
+    });
+
+    const rivalryRel = makeDoc(RIVALRY_ID, {
+      name: 'Rivalry',
+      capacity: 0,
+      size: 2,
+      type: '',
+      fields: {}
+    });
+
+    const { database } = await import('$lib/database');
+    vi.mocked(database.relationshipSelectors!.doc).mockReturnValueOnce({
+      read: vi.fn(async () => selector)
+    } as any);
+    vi.mocked(database.relationships!.doc).mockImplementation((id: string) => ({
+      read: vi.fn(async () => (id === RIVALRY_ID ? rivalryRel : undefined))
+    }) as any);
+
+    const rel = (members: string[]) => ({ relationshipID: RIVALRY_ID, assignedUserIDs: members });
+
+    // Post-delete state:
+    // Group 1: Bolt, Runtime
+    // Group 2: Cache, Ether
+    // Group 3: Catalyst, Warden
+    // Group 4: Silent, Nexus
+    // Group 5: Phantom          (orphan)
+    // Group 6: Statute, Order
+    //
+    // New participant: Power2 should fill Phantom, not cause Group 6 reshuffle.
+    assignmentDocs = [
+      makeDoc(`${SELECTOR_ID}-Bolt`, { userID: 'Bolt', relationshipSelectorID: SELECTOR_ID, relationshipRankings: [RIVALRY_ID], assignedRelationships: [rel(['Bolt', 'Runtime'])] }),
+      makeDoc(`${SELECTOR_ID}-Runtime`, { userID: 'Runtime', relationshipSelectorID: SELECTOR_ID, relationshipRankings: [RIVALRY_ID], assignedRelationships: [rel(['Bolt', 'Runtime'])] }),
+      makeDoc(`${SELECTOR_ID}-Cache`, { userID: 'Cache', relationshipSelectorID: SELECTOR_ID, relationshipRankings: [RIVALRY_ID], assignedRelationships: [rel(['Cache', 'Ether'])] }),
+      makeDoc(`${SELECTOR_ID}-Ether`, { userID: 'Ether', relationshipSelectorID: SELECTOR_ID, relationshipRankings: [RIVALRY_ID], assignedRelationships: [rel(['Cache', 'Ether'])] }),
+      makeDoc(`${SELECTOR_ID}-Catalyst`, { userID: 'Catalyst', relationshipSelectorID: SELECTOR_ID, relationshipRankings: [RIVALRY_ID], assignedRelationships: [rel(['Catalyst', 'Warden'])] }),
+      makeDoc(`${SELECTOR_ID}-Warden`, { userID: 'Warden', relationshipSelectorID: SELECTOR_ID, relationshipRankings: [RIVALRY_ID], assignedRelationships: [rel(['Catalyst', 'Warden'])] }),
+      makeDoc(`${SELECTOR_ID}-Silent`, { userID: 'Silent', relationshipSelectorID: SELECTOR_ID, relationshipRankings: [RIVALRY_ID], assignedRelationships: [rel(['Silent', 'Nexus'])] }),
+      makeDoc(`${SELECTOR_ID}-Nexus`, { userID: 'Nexus', relationshipSelectorID: SELECTOR_ID, relationshipRankings: [RIVALRY_ID], assignedRelationships: [rel(['Silent', 'Nexus'])] }),
+      makeDoc(`${SELECTOR_ID}-Phantom`, { userID: 'Phantom', relationshipSelectorID: SELECTOR_ID, relationshipRankings: [RIVALRY_ID], assignedRelationships: [rel(['Phantom'])] }),
+      makeDoc(`${SELECTOR_ID}-Statute`, { userID: 'Statute', relationshipSelectorID: SELECTOR_ID, relationshipRankings: [RIVALRY_ID], assignedRelationships: [rel(['Statute', 'Order'])] }),
+      makeDoc(`${SELECTOR_ID}-Order`, { userID: 'Order', relationshipSelectorID: SELECTOR_ID, relationshipRankings: [RIVALRY_ID], assignedRelationships: [rel(['Statute', 'Order'])] }),
+      makeDoc(`${SELECTOR_ID}-Power2`, { userID: 'Power2', relationshipSelectorID: SELECTOR_ID, relationshipRankings: [RIVALRY_ID], assignedRelationships: [] })
+    ];
+
+    const res = await POST(makeEvent({ gameID: GAME_ID, relationshipSelectorID: SELECTOR_ID }));
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(body.assignments).toBe(1);
+
+    const byUser = new Map<string, string[]>();
+    for (const op of batchOps) {
+      const docID = op.path.split('/').pop()!;
+      const userID = docID.replace(`${SELECTOR_ID}-`, '');
+      const payload = op.data as {
+        assignedRelationships: { relationshipID: string; assignedUserIDs: string[] }[];
+      };
+      const rivalry = payload.assignedRelationships.find((a) => a.relationshipID === RIVALRY_ID);
+      if (rivalry) byUser.set(userID, rivalry.assignedUserIDs);
+    }
+
+    // Existing complete tuple must remain intact.
+    expect(byUser.get('Statute')).toEqual(['Statute', 'Order']);
+    expect(byUser.get('Order')).toEqual(['Statute', 'Order']);
+
+    // Orphan must be filled by the new participant.
+    expect(byUser.get('Phantom')).toEqual(['Phantom', 'Power2']);
+    expect(byUser.get('Power2')).toEqual(['Phantom', 'Power2']);
+
+    // Restore
+    vi.mocked(database.relationships!.doc).mockImplementation((id: string) => ({
+      read: vi.fn(async () => relationships.find((r) => r.id === id))
+    }) as any);
+  });
+
+  it('fills an orphaned middle 3-tuple without reshuffling adjacent complete 3-tuples', async () => {
+    const SELECTOR_ID = 'trio-selector';
+    const TRIO_REL_ID = 'trio-rel';
+
+    const selector = makeDoc(SELECTOR_ID, {
+      name: 'Trio Selector',
+      relationshipIDs: [TRIO_REL_ID],
+      relationshipsPerCharacter: 1
+    });
+
+    const trioRel = makeDoc(TRIO_REL_ID, {
+      name: 'Trio Relationship',
+      capacity: 0,
+      size: 3,
+      type: '',
+      fields: {}
+    });
+
+    const { database } = await import('$lib/database');
+    vi.mocked(database.relationshipSelectors!.doc).mockReturnValueOnce({
+      read: vi.fn(async () => selector)
+    } as any);
+    vi.mocked(database.relationships!.doc).mockImplementation((id: string) => ({
+      read: vi.fn(async () => (id === TRIO_REL_ID ? trioRel : undefined))
+    }) as any);
+
+    const rel = (members: string[]) => ({ relationshipID: TRIO_REL_ID, assignedUserIDs: members });
+
+    // Existing post-delete state:
+    // Group 1: Alpha, Bravo, Charlie
+    // Group 2: Delta, Echo, Foxtrot
+    // Group 3: Gamma, Helix         (orphan size-2 for tuple size 3)
+    // Group 4: Indigo, Joker, Kappa
+    // New participant: Lambda should fill Group 3 without disturbing Group 2/4.
+    assignmentDocs = [
+      makeDoc(`${SELECTOR_ID}-Alpha`, { userID: 'Alpha', relationshipSelectorID: SELECTOR_ID, relationshipRankings: [TRIO_REL_ID], assignedRelationships: [rel(['Alpha', 'Bravo', 'Charlie'])] }),
+      makeDoc(`${SELECTOR_ID}-Bravo`, { userID: 'Bravo', relationshipSelectorID: SELECTOR_ID, relationshipRankings: [TRIO_REL_ID], assignedRelationships: [rel(['Alpha', 'Bravo', 'Charlie'])] }),
+      makeDoc(`${SELECTOR_ID}-Charlie`, { userID: 'Charlie', relationshipSelectorID: SELECTOR_ID, relationshipRankings: [TRIO_REL_ID], assignedRelationships: [rel(['Alpha', 'Bravo', 'Charlie'])] }),
+      makeDoc(`${SELECTOR_ID}-Delta`, { userID: 'Delta', relationshipSelectorID: SELECTOR_ID, relationshipRankings: [TRIO_REL_ID], assignedRelationships: [rel(['Delta', 'Echo', 'Foxtrot'])] }),
+      makeDoc(`${SELECTOR_ID}-Echo`, { userID: 'Echo', relationshipSelectorID: SELECTOR_ID, relationshipRankings: [TRIO_REL_ID], assignedRelationships: [rel(['Delta', 'Echo', 'Foxtrot'])] }),
+      makeDoc(`${SELECTOR_ID}-Foxtrot`, { userID: 'Foxtrot', relationshipSelectorID: SELECTOR_ID, relationshipRankings: [TRIO_REL_ID], assignedRelationships: [rel(['Delta', 'Echo', 'Foxtrot'])] }),
+      makeDoc(`${SELECTOR_ID}-Gamma`, { userID: 'Gamma', relationshipSelectorID: SELECTOR_ID, relationshipRankings: [TRIO_REL_ID], assignedRelationships: [rel(['Gamma', 'Helix'])] }),
+      makeDoc(`${SELECTOR_ID}-Helix`, { userID: 'Helix', relationshipSelectorID: SELECTOR_ID, relationshipRankings: [TRIO_REL_ID], assignedRelationships: [rel(['Gamma', 'Helix'])] }),
+      makeDoc(`${SELECTOR_ID}-Indigo`, { userID: 'Indigo', relationshipSelectorID: SELECTOR_ID, relationshipRankings: [TRIO_REL_ID], assignedRelationships: [rel(['Indigo', 'Joker', 'Kappa'])] }),
+      makeDoc(`${SELECTOR_ID}-Joker`, { userID: 'Joker', relationshipSelectorID: SELECTOR_ID, relationshipRankings: [TRIO_REL_ID], assignedRelationships: [rel(['Indigo', 'Joker', 'Kappa'])] }),
+      makeDoc(`${SELECTOR_ID}-Kappa`, { userID: 'Kappa', relationshipSelectorID: SELECTOR_ID, relationshipRankings: [TRIO_REL_ID], assignedRelationships: [rel(['Indigo', 'Joker', 'Kappa'])] }),
+      makeDoc(`${SELECTOR_ID}-Lambda`, { userID: 'Lambda', relationshipSelectorID: SELECTOR_ID, relationshipRankings: [TRIO_REL_ID], assignedRelationships: [] })
+    ];
+
+    const res = await POST(makeEvent({ gameID: GAME_ID, relationshipSelectorID: SELECTOR_ID }));
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(body.assignments).toBe(1);
+
+    const byUser = new Map<string, string[]>();
+    for (const op of batchOps) {
+      const docID = op.path.split('/').pop()!;
+      const userID = docID.replace(`${SELECTOR_ID}-`, '');
+      const payload = op.data as {
+        assignedRelationships: { relationshipID: string; assignedUserIDs: string[] }[];
+      };
+      const trio = payload.assignedRelationships.find((a) => a.relationshipID === TRIO_REL_ID);
+      if (trio) byUser.set(userID, trio.assignedUserIDs);
+    }
+
+    expect(byUser.get('Delta')).toEqual(['Delta', 'Echo', 'Foxtrot']);
+    expect(byUser.get('Echo')).toEqual(['Delta', 'Echo', 'Foxtrot']);
+    expect(byUser.get('Foxtrot')).toEqual(['Delta', 'Echo', 'Foxtrot']);
+
+    expect(byUser.get('Gamma')).toEqual(['Gamma', 'Helix', 'Lambda']);
+    expect(byUser.get('Helix')).toEqual(['Gamma', 'Helix', 'Lambda']);
+    expect(byUser.get('Lambda')).toEqual(['Gamma', 'Helix', 'Lambda']);
+
+    // Restore
+    vi.mocked(database.relationships!.doc).mockImplementation((id: string) => ({
+      read: vi.fn(async () => relationships.find((r) => r.id === id))
+    }) as any);
+  });
 });

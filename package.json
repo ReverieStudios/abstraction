@@ -2,7 +2,7 @@
 	"name": "reverie",
 	"version": "0.0.1",
 	"engines": {
-		"node": "20.x"
+		"node": "24.x"
 	},
 	"license": "GPL-3.0",
 	"scripts": {

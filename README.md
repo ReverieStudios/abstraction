@@ -160,7 +160,7 @@ You will need the following settings:
 - Install Command: `npm install`
 - Development Command: default, do not override
 - Under "Root Directory", make sure "include source files outside of the root directory" is checked. Root directory can be blank.
-- Node.js version: `18.x`. 
+- Node.js version: `24.x`. 
 - Project ID: Default is fine.
 
 Next, you will need to click on the "Environment Variables" tab on the right and add some environment variables:

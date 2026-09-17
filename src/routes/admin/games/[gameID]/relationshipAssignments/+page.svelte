@@ -70,12 +70,16 @@
 		relationshipID: string;
 		oldUserID: string | null; // the user being replaced, or null in add mode
 		currentRoster: string[];  // current members of this tuple
+		blockedUserIDs?: string[];
+		isNewRelationship?: boolean;
 	}
 	let editingSlot: EditingSlot | null = null;
 	let replaceWithUserID: string = '';
 
 	$: usersExcludingRoster = ($users ?? []).filter((u) => {
-		if (editingSlot && editingSlot.currentRoster.includes(u.id)) return false;
+		if (!editingSlot) return true;
+		if (editingSlot.blockedUserIDs?.includes(u.id)) return false;
+		if (editingSlot.currentRoster.includes(u.id)) return false;
 		return true;
 	});
 
@@ -265,6 +269,23 @@
 		replaceWithUserID = '';
 	};
 
+	// ── Manual override: open add modal for a new relationship ────────────────
+	const openAddRelationship = (
+		selectorID: string,
+		relationshipID: string,
+		blockedUserIDs: string[]
+	) => {
+		editingSlot = {
+			selectorID,
+			relationshipID,
+			oldUserID: null,
+			currentRoster: [],
+			blockedUserIDs,
+			isNewRelationship: true
+		};
+		replaceWithUserID = '';
+	};
+
 	// ── Manual override: save ─────────────────────────────────────────────────
 	const saveEdit = async () => {
 		if (!editingSlot || !replaceWithUserID) return;
@@ -407,6 +428,10 @@
 			<p class="mb1">
 				Replacing <strong>{getUserName(editingSlot.oldUserID)}</strong>
 				in <strong>{rel?.data?.name ?? editingSlot.relationshipID}</strong>
+			</p>
+		{:else if editingSlot.isNewRelationship}
+			<p class="mb1">
+				Adding a new relationship to <strong>{rel?.data?.name ?? editingSlot.relationshipID}</strong>
 			</p>
 		{:else}
 			<p class="mb1">
@@ -554,6 +579,14 @@
 													<Icon>{isRelShared ? 'visibility' : 'visibility_off'}</Icon>
 												</button>
 											{/if}
+											<IconButton
+												type="button"
+												icon="add"
+												title="Add a relationship manually"
+												aria-label="Add a relationship manually"
+												style="margin-left: auto;"
+												on:click={() => openAddRelationship(selector.id, relationshipID, userIDs)}
+											/>
 									</div>
 
 {#if tuples.length === 0}
